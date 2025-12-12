@@ -1,6 +1,7 @@
 .idea/
 .gocache/
 .gomodcache/
+plan/
 
 *.out
 *.prof
