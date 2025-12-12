@@ -3,6 +3,7 @@
 .gomodcache/
 plan/
 
+
 *.out
 *.prof
 *.test
