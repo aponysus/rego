@@ -2,14 +2,557 @@ package retry
 
 import (
 	"context"
+	"errors"
+	"math/rand"
+	"strings"
+	"time"
 
+	"github.com/aponysus/rego/classify"
+	"github.com/aponysus/rego/controlplane"
+	"github.com/aponysus/rego/observe"
 	"github.com/aponysus/rego/policy"
 )
 
 type Operation func(ctx context.Context) error
 
-type Executor struct{}
+type OperationValue[T any] func(ctx context.Context) (T, error)
+
+type FailureMode int
+
+const (
+	FailureFallback FailureMode = iota // use safe defaults
+	FailureAllow                       // proceed without constraint
+	FailureDeny                        // fail fast
+)
+
+// ErrNoPolicy is returned when MissingPolicyMode=FailureDeny and the executor
+// cannot obtain an authoritative policy.
+var ErrNoPolicy = errors.New("rego: no policy")
+
+type NoPolicyError struct {
+	Key policy.PolicyKey
+	Err error
+}
+
+func (e *NoPolicyError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	if e.Err == nil {
+		return ErrNoPolicy.Error()
+	}
+	return ErrNoPolicy.Error() + ": " + e.Err.Error()
+}
+
+func (e *NoPolicyError) Unwrap() error { return e.Err }
+
+func (e *NoPolicyError) Is(target error) bool { return target == ErrNoPolicy }
+
+type ExecutorOptions struct {
+	Provider controlplane.PolicyProvider
+	Observer observe.Observer // nil → NoopObserver
+	Clock    func() time.Time // for tests
+
+	// Failure modes for missing components (used in later phases).
+	MissingPolicyMode     FailureMode // default: FailureFallback
+	MissingClassifierMode FailureMode // default: FailureFallback (Phase 3+)
+	MissingBudgetMode     FailureMode // default: FailureAllow (Phase 4+)
+	MissingTriggerMode    FailureMode // default: FailureFallback/disable hedging (Phase 5+)
+
+	// Panic isolation for user hooks (Phase 3+).
+	RecoverPanics bool // default false
+}
+
+type Executor struct {
+	provider controlplane.PolicyProvider
+	observer observe.Observer
+	clock    func() time.Time
+
+	missingPolicyMode     FailureMode
+	missingClassifierMode FailureMode
+	missingBudgetMode     FailureMode
+	missingTriggerMode    FailureMode
+
+	recoverPanics bool
+
+	sleep func(ctx context.Context, d time.Duration) error
+}
+
+func NewExecutor(opts ExecutorOptions) *Executor {
+	exec := &Executor{
+		provider:      opts.Provider,
+		observer:      opts.Observer,
+		clock:         opts.Clock,
+		recoverPanics: opts.RecoverPanics,
+
+		missingPolicyMode:     normalizeFailureMode(opts.MissingPolicyMode, FailureFallback),
+		missingClassifierMode: normalizeFailureMode(opts.MissingClassifierMode, FailureFallback),
+		missingBudgetMode:     normalizeFailureMode(opts.MissingBudgetMode, FailureAllow),
+		missingTriggerMode:    normalizeFailureMode(opts.MissingTriggerMode, FailureFallback),
+
+		sleep: sleepWithContext,
+	}
+
+	if exec.provider == nil {
+		exec.provider = &controlplane.StaticProvider{}
+	}
+	if exec.observer == nil {
+		exec.observer = observe.NoopObserver{}
+	}
+	if exec.clock == nil {
+		exec.clock = time.Now
+	}
+	return exec
+}
+
+func normalizeFailureMode(mode FailureMode, defaultMode FailureMode) FailureMode {
+	switch mode {
+	case FailureFallback, FailureAllow, FailureDeny:
+		return mode
+	default:
+		return defaultMode
+	}
+}
 
 func (e *Executor) Do(ctx context.Context, key policy.PolicyKey, op Operation) error {
-	return op(ctx)
+	_, err := DoValue[struct{}](ctx, e, key, func(ctx context.Context) (struct{}, error) {
+		return struct{}{}, op(ctx)
+	})
+	return err
+}
+
+func DoValue[T any](ctx context.Context, exec *Executor, key policy.PolicyKey, op OperationValue[T]) (T, error) {
+	val, _, err := doValueInternal(ctx, exec, key, op, false)
+	return val, err
+}
+
+func DoValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.PolicyKey, op OperationValue[T]) (T, observe.Timeline, error) {
+	return doValueInternal(ctx, exec, key, op, true)
+}
+
+func (e *Executor) DoWithTimeline(ctx context.Context, key policy.PolicyKey, op Operation) (observe.Timeline, error) {
+	_, tl, err := DoValueWithTimeline[struct{}](ctx, e, key, func(ctx context.Context) (struct{}, error) {
+		return struct{}{}, op(ctx)
+	})
+	return tl, err
+}
+
+func doValueInternal[T any](ctx context.Context, exec *Executor, key policy.PolicyKey, op OperationValue[T], wantTimeline bool) (T, observe.Timeline, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if exec == nil {
+		exec = NewExecutor(ExecutorOptions{})
+	} else if exec.provider == nil || exec.clock == nil || exec.sleep == nil || exec.observer == nil {
+		exec = NewExecutor(ExecutorOptions{
+			Provider:              exec.provider,
+			Observer:              exec.observer,
+			Clock:                 exec.clock,
+			MissingPolicyMode:     exec.missingPolicyMode,
+			MissingBudgetMode:     exec.missingBudgetMode,
+			MissingClassifierMode: exec.missingClassifierMode,
+			MissingTriggerMode:    exec.missingTriggerMode,
+			RecoverPanics:         exec.recoverPanics,
+		})
+	}
+
+	fullTimeline := wantTimeline || !isNoopObserver(exec.observer)
+	if !fullTimeline {
+		val, err := doValueFast(ctx, exec, key, op)
+		return val, observe.Timeline{}, err
+	}
+	return doValueWithTimeline(ctx, exec, key, op)
+}
+
+func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKey, op OperationValue[T]) (T, error) {
+	var zero T
+
+	pol, err := resolvePolicyFast(ctx, exec, key)
+	if err != nil {
+		return zero, err
+	}
+
+	if pol.Retry.OverallTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, pol.Retry.OverallTimeout)
+		defer cancel()
+	}
+
+	backoff := pol.Retry.InitialBackoff
+	maxAttempts := pol.Retry.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	var last T
+	var lastErr error
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return last, err
+		}
+
+		attemptCtx := ctx
+		cancelAttempt := func() {}
+		if pol.Retry.TimeoutPerAttempt > 0 {
+			attemptCtx, cancelAttempt = context.WithTimeout(ctx, pol.Retry.TimeoutPerAttempt)
+		}
+		attemptCtx = observe.WithAttemptInfo(attemptCtx, observe.AttemptInfo{
+			RetryIndex: attempt,
+			Attempt:    attempt,
+			IsHedge:    false,
+			HedgeIndex: 0,
+			PolicyID:   pol.ID,
+		})
+
+		val, err := op(attemptCtx)
+		cancelAttempt()
+
+		last = val
+		lastErr = err
+
+		if err == nil {
+			return val, nil
+		}
+		if attempt == maxAttempts-1 {
+			return last, lastErr
+		}
+
+		sleepFor := applyJitter(backoff, pol.Retry.Jitter)
+		if sleepFor < 0 {
+			sleepFor = 0
+		}
+		if sleepFor > 0 {
+			if err := exec.sleep(ctx, sleepFor); err != nil {
+				return last, err
+			}
+		}
+
+		backoff = nextBackoff(backoff, pol.Retry.BackoffMultiplier, pol.Retry.MaxBackoff)
+	}
+
+	return last, lastErr
+}
+
+func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.PolicyKey, op OperationValue[T]) (T, observe.Timeline, error) {
+	var zero T
+
+	start := exec.clock()
+
+	pol, attrs, err := resolvePolicyWithAttributes(ctx, exec, key)
+	if err != nil {
+		tl := observe.Timeline{
+			Key:        key,
+			PolicyID:   pol.ID,
+			Start:      start,
+			End:        exec.clock(),
+			Attributes: attrs,
+			Attempts:   nil,
+			FinalErr:   err,
+		}
+		exec.observer.OnStart(ctx, key, pol)
+		exec.observer.OnFailure(ctx, key, tl)
+		return zero, tl, err
+	}
+
+	if pol.Retry.OverallTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, pol.Retry.OverallTimeout)
+		defer cancel()
+	}
+
+	maxAttempts := pol.Retry.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	tl := observe.Timeline{
+		Key:        key,
+		PolicyID:   pol.ID,
+		Start:      start,
+		Attributes: attrs,
+		Attempts:   make([]observe.AttemptRecord, 0, maxAttempts),
+	}
+	exec.observer.OnStart(ctx, key, pol)
+
+	backoff := pol.Retry.InitialBackoff
+
+	var last T
+	var lastErr error
+	var lastBackoff time.Duration
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			tl.End = exec.clock()
+			tl.FinalErr = err
+			exec.observer.OnFailure(ctx, key, tl)
+			return last, tl, err
+		}
+
+		attemptStart := exec.clock()
+
+		attemptCtx := ctx
+		cancelAttempt := func() {}
+		if pol.Retry.TimeoutPerAttempt > 0 {
+			attemptCtx, cancelAttempt = context.WithTimeout(ctx, pol.Retry.TimeoutPerAttempt)
+		}
+		attemptCtx = observe.WithAttemptInfo(attemptCtx, observe.AttemptInfo{
+			RetryIndex: attempt,
+			Attempt:    attempt,
+			IsHedge:    false,
+			HedgeIndex: 0,
+			PolicyID:   pol.ID,
+		})
+
+		val, err := op(attemptCtx)
+		cancelAttempt()
+
+		attemptEnd := exec.clock()
+
+		last = val
+		lastErr = err
+
+		outcome := classify.Outcome{
+			Kind:   classify.OutcomeRetryable,
+			Reason: "retryable_error",
+		}
+		if err == nil {
+			outcome.Kind = classify.OutcomeSuccess
+			outcome.Reason = "success"
+		}
+
+		rec := observe.AttemptRecord{
+			Attempt:       attempt,
+			StartTime:     attemptStart,
+			EndTime:       attemptEnd,
+			Outcome:       outcome,
+			Err:           err,
+			Backoff:       lastBackoff,
+			BudgetAllowed: true,
+			BudgetReason:  "not_used",
+		}
+		tl.Attempts = append(tl.Attempts, rec)
+		exec.observer.OnAttempt(attemptCtx, key, rec)
+
+		if err == nil {
+			tl.End = exec.clock()
+			tl.FinalErr = nil
+			exec.observer.OnSuccess(ctx, key, tl)
+			return val, tl, nil
+		}
+		if attempt == maxAttempts-1 {
+			tl.End = exec.clock()
+			tl.FinalErr = lastErr
+			exec.observer.OnFailure(ctx, key, tl)
+			return last, tl, lastErr
+		}
+
+		sleepFor := applyJitter(backoff, pol.Retry.Jitter)
+		if sleepFor < 0 {
+			sleepFor = 0
+		}
+		lastBackoff = sleepFor
+		if sleepFor > 0 {
+			if err := exec.sleep(ctx, sleepFor); err != nil {
+				tl.End = exec.clock()
+				tl.FinalErr = err
+				exec.observer.OnFailure(ctx, key, tl)
+				return last, tl, err
+			}
+		}
+
+		backoff = nextBackoff(backoff, pol.Retry.BackoffMultiplier, pol.Retry.MaxBackoff)
+	}
+
+	tl.End = exec.clock()
+	tl.FinalErr = lastErr
+	exec.observer.OnFailure(ctx, key, tl)
+	return last, tl, lastErr
+}
+
+func resolvePolicyWithAttributes(ctx context.Context, exec *Executor, key policy.PolicyKey) (policy.EffectivePolicy, map[string]string, error) {
+	attrs := make(map[string]string)
+
+	pol, err := exec.provider.GetEffectivePolicy(ctx, key)
+	if err != nil {
+		attrs["policy_error"] = policyErrorKind(err)
+		attrs["missing_policy_mode"] = failureModeString(exec.missingPolicyMode)
+
+		switch exec.missingPolicyMode {
+		case FailureDeny:
+			if isZeroEffectivePolicy(pol) {
+				pol = policy.EffectivePolicy{Key: key}
+			} else {
+				pol.Key = key
+			}
+			return pol, attrs, &NoPolicyError{Key: key, Err: err}
+		case FailureAllow:
+			pol = policy.EffectivePolicy{Key: key, Retry: policy.RetryPolicy{MaxAttempts: 1}}
+		case FailureFallback:
+			if isZeroEffectivePolicy(pol) {
+				pol = policy.DefaultPolicyFor(key)
+			}
+		}
+	}
+	if isZeroEffectivePolicy(pol) {
+		pol = policy.DefaultPolicyFor(key)
+	}
+	pol.Key = key
+
+	var normErr error
+	pol, normErr = pol.Normalize()
+	if normErr != nil {
+		attrs["policy_error"] = "policy_normalize_error"
+		attrs["missing_policy_mode"] = failureModeString(exec.missingPolicyMode)
+		switch exec.missingPolicyMode {
+		case FailureDeny:
+			return pol, attrs, &NoPolicyError{Key: key, Err: normErr}
+		case FailureAllow:
+			pol = policy.EffectivePolicy{Key: key, Retry: policy.RetryPolicy{MaxAttempts: 1}}
+			pol, _ = pol.Normalize()
+		case FailureFallback:
+			pol = policy.DefaultPolicyFor(key)
+			pol, _ = pol.Normalize()
+		}
+	}
+
+	if pol.Meta.Source != "" {
+		attrs["policy_source"] = string(pol.Meta.Source)
+	}
+	if pol.Meta.Normalization.Changed {
+		attrs["policy_normalized"] = "true"
+		if len(pol.Meta.Normalization.ChangedFields) > 0 {
+			attrs["policy_clamped_fields"] = strings.Join(pol.Meta.Normalization.ChangedFields, ",")
+		}
+	}
+
+	return pol, attrs, nil
+}
+
+func failureModeString(mode FailureMode) string {
+	switch mode {
+	case FailureFallback:
+		return "fallback"
+	case FailureAllow:
+		return "allow"
+	case FailureDeny:
+		return "deny"
+	default:
+		return "unknown"
+	}
+}
+
+func resolvePolicyFast(ctx context.Context, exec *Executor, key policy.PolicyKey) (policy.EffectivePolicy, error) {
+	pol, err := exec.provider.GetEffectivePolicy(ctx, key)
+	if err != nil {
+		switch exec.missingPolicyMode {
+		case FailureDeny:
+			return policy.EffectivePolicy{}, &NoPolicyError{Key: key, Err: err}
+		case FailureAllow:
+			pol = policy.EffectivePolicy{Key: key, Retry: policy.RetryPolicy{MaxAttempts: 1}}
+		case FailureFallback:
+			if isZeroEffectivePolicy(pol) {
+				pol = policy.DefaultPolicyFor(key)
+			}
+		}
+	}
+	if isZeroEffectivePolicy(pol) {
+		pol = policy.DefaultPolicyFor(key)
+	}
+	pol.Key = key
+
+	pol, normErr := pol.Normalize()
+	if normErr != nil {
+		switch exec.missingPolicyMode {
+		case FailureDeny:
+			return policy.EffectivePolicy{}, &NoPolicyError{Key: key, Err: normErr}
+		case FailureAllow:
+			pol = policy.EffectivePolicy{Key: key, Retry: policy.RetryPolicy{MaxAttempts: 1}}
+			pol, _ = pol.Normalize()
+		case FailureFallback:
+			pol = policy.DefaultPolicyFor(key)
+			pol, _ = pol.Normalize()
+		}
+	}
+
+	return pol, nil
+}
+
+func policyErrorKind(err error) string {
+	switch {
+	case errors.Is(err, controlplane.ErrPolicyNotFound):
+		return "policy_not_found"
+	case errors.Is(err, controlplane.ErrProviderUnavailable):
+		return "provider_unavailable"
+	case errors.Is(err, controlplane.ErrPolicyFetchFailed):
+		return "policy_fetch_failed"
+	default:
+		return "unknown_error"
+	}
+}
+
+func isNoopObserver(obs observe.Observer) bool {
+	switch obs.(type) {
+	case observe.NoopObserver, *observe.NoopObserver:
+		return true
+	default:
+		return false
+	}
+}
+
+func isZeroEffectivePolicy(pol policy.EffectivePolicy) bool {
+	return pol.Key == (policy.PolicyKey{}) &&
+		pol.ID == "" &&
+		pol.Retry == (policy.RetryPolicy{}) &&
+		pol.Hedge == (policy.HedgePolicy{})
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(d)
+
+	// defensive cleanup. This avoids subtle leaks/incorrect behavior patters
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C: // drain any pending tick so the channel doesn't retain value
+			default:
+			}
+		}
+	}()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func nextBackoff(current time.Duration, multiplier float64, max time.Duration) time.Duration {
+	next := time.Duration(float64(current) * multiplier)
+	if next < 0 {
+		next = 0
+	}
+	if max > 0 && next > max {
+		return max
+	}
+	return next
+}
+
+func applyJitter(backoff time.Duration, kind policy.JitterKind) time.Duration {
+	switch kind {
+	case policy.JitterNone, "":
+		return backoff
+	case policy.JitterFull:
+		return time.Duration(rand.Float64() * float64(backoff))
+	case policy.JitterEqual:
+		half := float64(backoff) / 2
+		return time.Duration(half + rand.Float64()*half)
+	default:
+		return backoff
+	}
 }
