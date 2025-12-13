@@ -1,4 +1,4 @@
-# Extending `rego` (early draft)
+# Extending `rego`
 
 This document describes the extension pattern used by `rego` and how to plug in custom behavior.
 
