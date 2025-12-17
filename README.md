@@ -2,18 +2,19 @@
 
 Policy-driven, observability-first resilience library in Go for distributed systems.
 
-This repository is **early-stage**. The core retry + timeline APIs exist today, but higher-level features (classifiers, budgets, hedging, remote control plane, integrations) are still in progress.
+This repository is **early-stage**. Retry, timelines, and outcome classifiers exist today; budgets, hedging, remote control plane, and integrations are still in progress.
 
 ## What you get today
 
 - A retry executor with bounded attempts, backoff/jitter, and per-attempt/overall timeouts
 - A low-cardinality key model (`"svc.Method"`) that policies are attached to
+- Outcome classifiers for protocol/domain-aware retry decisions
 - Structured, per-attempt observability via `observe.Timeline`
 - Optional callback-based observability via `observe.Observer`
 
 ## Requirements
 
-- Go 1.22+ (per `go.mod`)
+- Go 1.22+
 
 ## Why
 
@@ -62,7 +63,7 @@ Every call can produce an `observe.Timeline`:
 - One `AttemptRecord` per attempt
 - Optional observer callbacks (`observe.Observer`) for logs/metrics/tracing integrations
 
-## Quick start (one-liner)
+## Quick start
 
 Use the facade package (import path `github.com/aponysus/rego/rego`) for the simplest path:
 
@@ -246,10 +247,10 @@ Implemented:
 - Retry executor with backoff/jitter and per-attempt/overall timeouts (`retry`)
 - Timelines + observers (`observe.Timeline`, `observe.Observer`)
 - Facade helpers that accept string keys (`rego.Do*`)
+- Outcome classifiers (protocol/domain-aware retry decisions)
 
 Planned (see `docs/roadmap.md`):
 
-- Outcome classifiers (protocol/domain-aware retry decisions)
 - Budgets/backpressure
 - Hedging (fixed-delay and latency-aware)
 - Remote control-plane provider (caching + last-known-good)

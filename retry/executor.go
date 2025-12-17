@@ -48,10 +48,33 @@ func (e *NoPolicyError) Unwrap() error { return e.Err }
 
 func (e *NoPolicyError) Is(target error) bool { return target == ErrNoPolicy }
 
+// ErrNoClassifier is returned when MissingClassifierMode=FailureDeny and the executor
+// cannot resolve the requested classifier by name.
+var ErrNoClassifier = errors.New("rego: classifier not found")
+
+type NoClassifierError struct {
+	Name string
+}
+
+func (e *NoClassifierError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	if strings.TrimSpace(e.Name) == "" {
+		return ErrNoClassifier.Error()
+	}
+	return ErrNoClassifier.Error() + ": " + e.Name
+}
+
+func (e *NoClassifierError) Is(target error) bool { return target == ErrNoClassifier }
+
 type ExecutorOptions struct {
 	Provider controlplane.PolicyProvider
 	Observer observe.Observer // nil → NoopObserver
 	Clock    func() time.Time // for tests
+
+	Classifiers       *classify.Registry
+	DefaultClassifier classify.Classifier
 
 	// Failure modes for missing components (used in later phases).
 	MissingPolicyMode     FailureMode // default: FailureFallback
@@ -68,6 +91,9 @@ type Executor struct {
 	observer observe.Observer
 	clock    func() time.Time
 
+	classifiers       *classify.Registry
+	defaultClassifier classify.Classifier
+
 	missingPolicyMode     FailureMode
 	missingClassifierMode FailureMode
 	missingBudgetMode     FailureMode
@@ -80,10 +106,12 @@ type Executor struct {
 
 func NewExecutor(opts ExecutorOptions) *Executor {
 	exec := &Executor{
-		provider:      opts.Provider,
-		observer:      opts.Observer,
-		clock:         opts.Clock,
-		recoverPanics: opts.RecoverPanics,
+		provider:          opts.Provider,
+		observer:          opts.Observer,
+		clock:             opts.Clock,
+		classifiers:       opts.Classifiers,
+		defaultClassifier: opts.DefaultClassifier,
+		recoverPanics:     opts.RecoverPanics,
 
 		missingPolicyMode:     normalizeFailureMode(opts.MissingPolicyMode, FailureFallback),
 		missingClassifierMode: normalizeFailureMode(opts.MissingClassifierMode, FailureFallback),
@@ -98,6 +126,13 @@ func NewExecutor(opts ExecutorOptions) *Executor {
 	}
 	if exec.observer == nil {
 		exec.observer = observe.NoopObserver{}
+	}
+	if exec.classifiers == nil {
+		exec.classifiers = classify.NewRegistry()
+		classify.RegisterBuiltins(exec.classifiers)
+	}
+	if exec.defaultClassifier == nil {
+		exec.defaultClassifier = classify.AlwaysRetryOnError{}
 	}
 	if exec.clock == nil {
 		exec.clock = time.Now
@@ -144,11 +179,13 @@ func doValueInternal[T any](ctx context.Context, exec *Executor, key policy.Poli
 
 	if exec == nil {
 		exec = NewExecutor(ExecutorOptions{})
-	} else if exec.provider == nil || exec.clock == nil || exec.sleep == nil || exec.observer == nil {
+	} else if exec.provider == nil || exec.clock == nil || exec.sleep == nil || exec.observer == nil || exec.classifiers == nil || exec.defaultClassifier == nil {
 		exec = NewExecutor(ExecutorOptions{
 			Provider:              exec.provider,
 			Observer:              exec.observer,
 			Clock:                 exec.clock,
+			Classifiers:           exec.classifiers,
+			DefaultClassifier:     exec.defaultClassifier,
 			MissingPolicyMode:     exec.missingPolicyMode,
 			MissingBudgetMode:     exec.missingBudgetMode,
 			MissingClassifierMode: exec.missingClassifierMode,
@@ -169,6 +206,11 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 	var zero T
 
 	pol, err := resolvePolicyFast(ctx, exec, key)
+	if err != nil {
+		return zero, err
+	}
+
+	classifier, _, err := resolveClassifier(exec, pol)
 	if err != nil {
 		return zero, err
 	}
@@ -212,17 +254,24 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 		last = val
 		lastErr = err
 
-		if err == nil {
+		out := classifyWithRecovery(exec.recoverPanics, classifier, val, err)
+		if out.Kind == classify.OutcomeSuccess {
 			return val, nil
 		}
+
+		switch out.Kind {
+		case classify.OutcomeRetryable:
+			// continue
+		case classify.OutcomeNonRetryable, classify.OutcomeAbort, classify.OutcomeUnknown:
+			return last, terminalError(ctx, err, out)
+		default:
+			return last, terminalError(ctx, err, classify.Outcome{Kind: classify.OutcomeAbort, Reason: "unknown_outcome"})
+		}
 		if attempt == maxAttempts-1 {
-			return last, lastErr
+			return last, terminalError(ctx, lastErr, out)
 		}
 
-		sleepFor := applyJitter(backoff, pol.Retry.Jitter)
-		if sleepFor < 0 {
-			sleepFor = 0
-		}
+		sleepFor := computeSleep(backoff, pol.Retry, out)
 		if sleepFor > 0 {
 			if err := exec.sleep(ctx, sleepFor); err != nil {
 				return last, err
@@ -251,6 +300,26 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			Attempts:   nil,
 			FinalErr:   err,
 		}
+		exec.observer.OnStart(ctx, key, pol)
+		exec.observer.OnFailure(ctx, key, tl)
+		return zero, tl, err
+	}
+
+	classifier, cmeta, err := resolveClassifier(exec, pol)
+	if err != nil {
+		tl := observe.Timeline{
+			Key:        key,
+			PolicyID:   pol.ID,
+			Start:      start,
+			End:        exec.clock(),
+			Attributes: attrs,
+			Attempts:   nil,
+			FinalErr:   err,
+		}
+		if cmeta.requested != "" {
+			tl.Attributes["classifier_name"] = cmeta.requested
+		}
+		tl.Attributes["classifier_error"] = "classifier_not_found"
 		exec.observer.OnStart(ctx, key, pol)
 		exec.observer.OnFailure(ctx, key, tl)
 		return zero, tl, err
@@ -313,14 +382,8 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 		last = val
 		lastErr = err
 
-		outcome := classify.Outcome{
-			Kind:   classify.OutcomeRetryable,
-			Reason: "retryable_error",
-		}
-		if err == nil {
-			outcome.Kind = classify.OutcomeSuccess
-			outcome.Reason = "success"
-		}
+		outcome := classifyWithRecovery(exec.recoverPanics, classifier, val, err)
+		annotateClassifierFallback(&outcome, cmeta)
 
 		rec := observe.AttemptRecord{
 			Attempt:       attempt,
@@ -335,23 +398,38 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 		tl.Attempts = append(tl.Attempts, rec)
 		exec.observer.OnAttempt(attemptCtx, key, rec)
 
-		if err == nil {
+		if outcome.Kind == classify.OutcomeSuccess {
 			tl.End = exec.clock()
 			tl.FinalErr = nil
 			exec.observer.OnSuccess(ctx, key, tl)
 			return val, tl, nil
 		}
-		if attempt == maxAttempts-1 {
+
+		switch outcome.Kind {
+		case classify.OutcomeRetryable:
+			// continue
+		case classify.OutcomeNonRetryable, classify.OutcomeAbort, classify.OutcomeUnknown:
+			terr := terminalError(ctx, err, outcome)
 			tl.End = exec.clock()
-			tl.FinalErr = lastErr
+			tl.FinalErr = terr
 			exec.observer.OnFailure(ctx, key, tl)
-			return last, tl, lastErr
+			return last, tl, terr
+		default:
+			terr := terminalError(ctx, err, classify.Outcome{Kind: classify.OutcomeAbort, Reason: "unknown_outcome"})
+			tl.End = exec.clock()
+			tl.FinalErr = terr
+			exec.observer.OnFailure(ctx, key, tl)
+			return last, tl, terr
+		}
+		if attempt == maxAttempts-1 {
+			terr := terminalError(ctx, lastErr, outcome)
+			tl.End = exec.clock()
+			tl.FinalErr = terr
+			exec.observer.OnFailure(ctx, key, tl)
+			return last, tl, terr
 		}
 
-		sleepFor := applyJitter(backoff, pol.Retry.Jitter)
-		if sleepFor < 0 {
-			sleepFor = 0
-		}
+		sleepFor := computeSleep(backoff, pol.Retry, outcome)
 		lastBackoff = sleepFor
 		if sleepFor > 0 {
 			if err := exec.sleep(ctx, sleepFor); err != nil {
@@ -555,4 +633,106 @@ func applyJitter(backoff time.Duration, kind policy.JitterKind) time.Duration {
 	default:
 		return backoff
 	}
+}
+
+type classifierMeta struct {
+	requested string
+	notFound  bool
+}
+
+func resolveClassifier(exec *Executor, pol policy.EffectivePolicy) (classify.Classifier, classifierMeta, error) {
+	meta := classifierMeta{requested: strings.TrimSpace(pol.Retry.ClassifierName)}
+
+	classifier := exec.defaultClassifier
+	if meta.requested == "" {
+		return classifier, meta, nil
+	}
+
+	if c, ok := exec.classifiers.Get(meta.requested); ok {
+		return c, meta, nil
+	}
+
+	meta.notFound = true
+	switch exec.missingClassifierMode {
+	case FailureDeny:
+		return nil, meta, &NoClassifierError{Name: meta.requested}
+	default:
+		return classifier, meta, nil
+	}
+}
+
+func annotateClassifierFallback(out *classify.Outcome, meta classifierMeta) {
+	if out == nil || !meta.notFound || meta.requested == "" {
+		return
+	}
+	if out.Attributes == nil {
+		out.Attributes = make(map[string]string, 3)
+	}
+	out.Attributes["classifier_not_found"] = "true"
+	out.Attributes["classifier_name"] = meta.requested
+	out.Attributes["classifier_fallback"] = "default"
+}
+
+func classifyWithRecovery(recoverPanics bool, classifier classify.Classifier, value any, err error) (out classify.Outcome) {
+	if recoverPanics {
+		defer func() {
+			if r := recover(); r != nil {
+				out = classify.Outcome{Kind: classify.OutcomeAbort, Reason: "panic_in_classifier"}
+			}
+		}()
+	}
+	out = classifier.Classify(value, err)
+	if out.Kind == classify.OutcomeUnknown {
+		if out.Reason == "" {
+			out.Reason = "unknown_outcome"
+		}
+		out.Kind = classify.OutcomeAbort
+	}
+	if out.Reason == "" {
+		switch out.Kind {
+		case classify.OutcomeSuccess:
+			out.Reason = "success"
+		case classify.OutcomeRetryable:
+			out.Reason = "retryable_error"
+		case classify.OutcomeNonRetryable:
+			out.Reason = "non_retryable_error"
+		case classify.OutcomeAbort:
+			out.Reason = "abort"
+		default:
+			out.Reason = "unknown_outcome"
+		}
+	}
+	return out
+}
+
+func terminalError(ctx context.Context, opErr error, out classify.Outcome) error {
+	if ctx != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil && (errors.Is(opErr, context.Canceled) || errors.Is(opErr, context.DeadlineExceeded)) {
+			return ctxErr
+		}
+	}
+	if opErr != nil {
+		return opErr
+	}
+	if out.Reason != "" {
+		return errors.New("rego: " + out.Reason)
+	}
+	return errors.New("rego: operation failed")
+}
+
+func computeSleep(backoff time.Duration, pol policy.RetryPolicy, out classify.Outcome) time.Duration {
+	if out.BackoffOverride > 0 {
+		return capBackoff(out.BackoffOverride, pol.MaxBackoff)
+	}
+	return capBackoff(applyJitter(backoff, pol.Jitter), pol.MaxBackoff)
+}
+
+func capBackoff(d, max time.Duration) time.Duration {
+	if d < 0 {
+		return 0
+	}
+	if max > 0 && d > max {
+		return max
+	}
+	return d
 }

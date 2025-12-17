@@ -56,7 +56,7 @@ The repository is modular by design:
 | `policy` | Policy keys + schema + normalization/clamping |
 | `controlplane` | Policy providers (today: static provider; remote provider planned) |
 | `observe` | Timeline types, observer interface, attempt context metadata |
-| `classify` | Outcome types (classifier registry planned) |
+| `classify` | Outcome classifiers + registry |
 | `budget` | Budget types (planned) |
 | `hedge` | Hedge triggers/latency tracking (planned) |
 
@@ -79,4 +79,3 @@ Run tests locally:
 ```bash
 go test ./...
 ```
-

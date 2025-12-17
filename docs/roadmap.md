@@ -10,13 +10,10 @@ Implemented today:
 - Policy schema + normalization/clamping
 - Static in-process policy provider
 - Timelines (`observe.Timeline`) and observer callbacks (`observe.Observer`)
+- Outcome classifiers (`classify.Classifier`) selected by policy
 - Facade helpers that accept string keys (`rego.Do*`)
 
 ## Planned phases (high level)
-
-### Outcomes and classifiers
-
-Add protocol/domain-aware retry decisions (beyond “retry on error”), driven by a classifier registry and referenced by policy.
 
 ### Budgets
 
@@ -37,4 +34,3 @@ Add common integrations (HTTP/gRPC helpers) and stable zero-config wiring while 
 ### Hardening and v1 docs
 
 Add race/leak hardening, broader tests, examples, and documentation polish leading to a v1.0 API freeze.
-
