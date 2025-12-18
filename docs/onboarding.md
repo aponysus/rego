@@ -6,7 +6,7 @@ This guide is for engineers who know Go and want to understand (or contribute to
 
 `rego` is a **policy-driven, observability-first** resilience library. Call sites provide a low-cardinality key (e.g. `"svc.Method"`), policies decide behavior for that key, and the executor produces structured telemetry for every attempt.
 
-## The public API (what users write)
+## The public API
 
 The “happy path” is a one-liner with a string key:
 
@@ -57,7 +57,7 @@ The repository is modular by design:
 | `controlplane` | Policy providers (today: static provider; remote provider planned) |
 | `observe` | Timeline types, observer interface, attempt context metadata |
 | `classify` | Outcome classifiers + registry |
-| `budget` | Budget types (planned) |
+| `budget` | Budgets/backpressure (per-attempt gating + registry) |
 | `hedge` | Hedge triggers/latency tracking (planned) |
 
 ## Suggested reading order

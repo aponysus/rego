@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aponysus/rego/budget"
 	"github.com/aponysus/rego/classify"
 	"github.com/aponysus/rego/controlplane"
 	"github.com/aponysus/rego/observe"
@@ -76,6 +77,8 @@ type ExecutorOptions struct {
 	Classifiers       *classify.Registry
 	DefaultClassifier classify.Classifier
 
+	Budgets *budget.Registry
+
 	// Failure modes for missing components (used in later phases).
 	MissingPolicyMode     FailureMode // default: FailureFallback
 	MissingClassifierMode FailureMode // default: FailureFallback (Phase 3+)
@@ -93,6 +96,7 @@ type Executor struct {
 
 	classifiers       *classify.Registry
 	defaultClassifier classify.Classifier
+	budgets           *budget.Registry
 
 	missingPolicyMode     FailureMode
 	missingClassifierMode FailureMode
@@ -111,6 +115,7 @@ func NewExecutor(opts ExecutorOptions) *Executor {
 		clock:             opts.Clock,
 		classifiers:       opts.Classifiers,
 		defaultClassifier: opts.DefaultClassifier,
+		budgets:           opts.Budgets,
 		recoverPanics:     opts.RecoverPanics,
 
 		missingPolicyMode:     normalizeFailureMode(opts.MissingPolicyMode, FailureFallback),
@@ -186,6 +191,7 @@ func doValueInternal[T any](ctx context.Context, exec *Executor, key policy.Poli
 			Clock:                 exec.clock,
 			Classifiers:           exec.classifiers,
 			DefaultClassifier:     exec.defaultClassifier,
+			Budgets:               exec.budgets,
 			MissingPolicyMode:     exec.missingPolicyMode,
 			MissingBudgetMode:     exec.missingBudgetMode,
 			MissingClassifierMode: exec.missingClassifierMode,
@@ -235,6 +241,16 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 			return last, err
 		}
 
+		decision, ok := exec.allowAttempt(ctx, key, pol.Retry.Budget, attempt, budget.KindRetry)
+		if !ok {
+			if attempt == 0 {
+				return zero, terminalError(ctx, nil, classify.Outcome{Kind: classify.OutcomeAbort, Reason: decision.Reason})
+			}
+			return last, lastErr
+		}
+
+		release := decision.Release
+
 		attemptCtx := ctx
 		cancelAttempt := func() {}
 		if pol.Retry.TimeoutPerAttempt > 0 {
@@ -248,8 +264,15 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 			PolicyID:   pol.ID,
 		})
 
-		val, err := op(attemptCtx)
-		cancelAttempt()
+		var val T
+		var err error
+		func() {
+			defer cancelAttempt()
+			if release != nil {
+				defer release()
+			}
+			val, err = op(attemptCtx)
+		}()
 
 		last = val
 		lastErr = err
@@ -361,6 +384,42 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 
 		attemptStart := exec.clock()
 
+		decision, ok := exec.allowAttempt(ctx, key, pol.Retry.Budget, attempt, budget.KindRetry)
+		if !ok {
+			attemptCtx := observe.WithAttemptInfo(ctx, observe.AttemptInfo{
+				RetryIndex: attempt,
+				Attempt:    attempt,
+				IsHedge:    false,
+				HedgeIndex: 0,
+				PolicyID:   pol.ID,
+			})
+
+			outcome := classify.Outcome{Kind: classify.OutcomeAbort, Reason: decision.Reason}
+			rec := observe.AttemptRecord{
+				Attempt:       attempt,
+				StartTime:     attemptStart,
+				EndTime:       exec.clock(),
+				Outcome:       outcome,
+				Err:           nil,
+				Backoff:       lastBackoff,
+				BudgetAllowed: false,
+				BudgetReason:  decision.Reason,
+			}
+			tl.Attempts = append(tl.Attempts, rec)
+			exec.observer.OnAttempt(attemptCtx, key, rec)
+
+			terr := terminalError(ctx, nil, outcome)
+			if attempt > 0 && lastErr != nil {
+				terr = lastErr
+			}
+			tl.End = exec.clock()
+			tl.FinalErr = terr
+			exec.observer.OnFailure(ctx, key, tl)
+			return last, tl, terr
+		}
+
+		release := decision.Release
+
 		attemptCtx := ctx
 		cancelAttempt := func() {}
 		if pol.Retry.TimeoutPerAttempt > 0 {
@@ -374,8 +433,15 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			PolicyID:   pol.ID,
 		})
 
-		val, err := op(attemptCtx)
-		cancelAttempt()
+		var val T
+		var err error
+		func() {
+			defer cancelAttempt()
+			if release != nil {
+				defer release()
+			}
+			val, err = op(attemptCtx)
+		}()
 
 		attemptEnd := exec.clock()
 
@@ -392,8 +458,8 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			Outcome:       outcome,
 			Err:           err,
 			Backoff:       lastBackoff,
-			BudgetAllowed: true,
-			BudgetReason:  "not_used",
+			BudgetAllowed: decision.Allowed,
+			BudgetReason:  decision.Reason,
 		}
 		tl.Attempts = append(tl.Attempts, rec)
 		exec.observer.OnAttempt(attemptCtx, key, rec)

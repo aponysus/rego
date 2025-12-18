@@ -48,6 +48,32 @@ Guidelines:
 - Use `ref.Cost` to support weighted backpressure if applicable.
 - If you return a `Decision.Release`, it must be safe to call exactly once.
 
+Budget decisions surface on `observe.AttemptRecord` as `BudgetAllowed` and `BudgetReason`. Standard reasons are:
+
+- `"no_budget"`: no budget configured for the call.
+- `"budget_not_found"`: policy referenced a budget name not in the registry.
+- `"budget_denied"`: budget denied the attempt.
+- `"panic_in_budget"`: budget panicked and `RecoverPanics` converted it to a denial.
+
+### Wiring budgets
+
+Budgets are selected by policy (`Retry.Budget.Name`) and resolved via the executor’s `Budgets` registry:
+
+```go
+budgets := budget.NewRegistry()
+budgets.Register("tb", budget.NewTokenBucketBudget(100, 50)) // capacity=100, refill=50 tokens/sec
+
+exec := retry.NewExecutor(retry.ExecutorOptions{
+	Provider: provider,
+	Budgets:  budgets,
+})
+
+// In policy:
+pol.Retry.Budget = policy.BudgetRef{Name: "tb", Cost: 1}
+```
+
+By default, a missing budget name is fail-open (`MissingBudgetMode=retry.FailureAllow`) and records `"budget_not_found"` in the timeline; set `MissingBudgetMode=retry.FailureDeny` to fail-closed.
+
 ## Writing a custom hedge trigger
 
 Implement:
@@ -62,4 +88,3 @@ Guidelines:
 ## Versioning note
 
 This extension surface will stabilize during the `v0.x` series. Until `v1.0.0`, consider all APIs provisional.
-

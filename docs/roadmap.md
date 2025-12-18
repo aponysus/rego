@@ -11,13 +11,14 @@ Implemented today:
 - Static in-process policy provider
 - Timelines (`observe.Timeline`) and observer callbacks (`observe.Observer`)
 - Outcome classifiers (`classify.Classifier`) selected by policy
+- Budgets/backpressure (per-attempt gating via `budget` + `ExecutorOptions.Budgets`)
 - Facade helpers that accept string keys (`rego.Do*`)
 
 ## Planned phases (high level)
 
 ### Budgets
 
-Add per-attempt budgeting/backpressure to prevent retry/hedge storms.
+Budgets/backpressure are implemented for retries; next is extending budgets to cover hedges and richer backpressure models.
 
 ### Hedging
 

@@ -2,11 +2,12 @@
 
 Policy-driven, observability-first resilience library in Go for distributed systems.
 
-This repository is **early-stage**. Retry, timelines, and outcome classifiers exist today; budgets, hedging, remote control plane, and integrations are still in progress.
+This repository is **early-stage**. Retry, budgets/backpressure, timelines, and outcome classifiers exist today; hedging, remote control plane, and integrations are still in progress.
 
 ## What you get today
 
 - A retry executor with bounded attempts, backoff/jitter, and per-attempt/overall timeouts
+- Per-attempt budgets/backpressure to prevent retry storms (opt-in via `retry.ExecutorOptions.Budgets`; fail-open by default)
 - A low-cardinality key model (`"svc.Method"`) that policies are attached to
 - Outcome classifiers for protocol/domain-aware retry decisions
 - Structured, per-attempt observability via `observe.Timeline`
@@ -236,6 +237,10 @@ You can fan out to multiple observers with `observe.MultiObserver`.
   - `retry.DoValueWithTimeline[T](ctx, exec, key, op)`
   - `(*retry.Executor).Do(ctx, key, op)`
   - `(*retry.Executor).DoWithTimeline(ctx, key, op)`
+- Budgets (`github.com/aponysus/rego/budget`)
+  - `budget.NewRegistry()`
+  - `budget.UnlimitedBudget{}`
+  - `budget.NewTokenBucketBudget(capacity int, refillPerSecond float64)`
 
 ## Current status
 
@@ -248,10 +253,10 @@ Implemented:
 - Timelines + observers (`observe.Timeline`, `observe.Observer`)
 - Facade helpers that accept string keys (`rego.Do*`)
 - Outcome classifiers (protocol/domain-aware retry decisions)
+- Budgets/backpressure (per-attempt gating via `policy.Retry.Budget` + `retry.ExecutorOptions.Budgets`, optional release semantics)
 
 Planned (see `docs/roadmap.md`):
 
-- Budgets/backpressure
 - Hedging (fixed-delay and latency-aware)
 - Remote control-plane provider (caching + last-known-good)
 - HTTP/gRPC integrations
