@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aponysus/rego/controlplane"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/controlplane"
+	"github.com/aponysus/recourse/policy"
 )
 
 func TestExecutor_Do_Trivial(t *testing.T) {

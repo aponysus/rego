@@ -1,6 +1,6 @@
 # Policy keys
 
-`rego` selects behavior using a **policy key**: a stable, low-cardinality identifier for a call site.
+`recourse` selects behavior using a **policy key**: a stable, low-cardinality identifier for a call site.
 
 Examples:
 

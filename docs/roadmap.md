@@ -1,6 +1,6 @@
 # Roadmap
 
-`rego` is being built in phases to keep the public surface small while the internals evolve.
+`recourse` is being built in phases to keep the public surface small while the internals evolve.
 
 ## Current status
 
@@ -12,7 +12,7 @@ Implemented today:
 - Timelines (`observe.Timeline`) and observer callbacks (`observe.Observer`)
 - Outcome classifiers (`classify.Classifier`) selected by policy
 - Budgets/backpressure (per-attempt gating via `budget` + `ExecutorOptions.Budgets`)
-- Facade helpers that accept string keys (`rego.Do*`)
+- Facade helpers that accept string keys (`recourse.Do*`)
 
 ## Planned phases (high level)
 

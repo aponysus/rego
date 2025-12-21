@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aponysus/rego/controlplane"
-	"github.com/aponysus/rego/observe"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/controlplane"
+	"github.com/aponysus/recourse/observe"
+	"github.com/aponysus/recourse/policy"
 )
 
 func TestDoValueWithTimeline_ObserverCallbacks_Success(t *testing.T) {

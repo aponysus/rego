@@ -1,11 +1,11 @@
-package rego
+package recourse
 
 import (
 	"context"
 
-	"github.com/aponysus/rego/observe"
-	"github.com/aponysus/rego/policy"
-	"github.com/aponysus/rego/retry"
+	"github.com/aponysus/recourse/observe"
+	"github.com/aponysus/recourse/policy"
+	"github.com/aponysus/recourse/retry"
 )
 
 // Key is the structured form of a policy key.

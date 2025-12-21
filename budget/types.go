@@ -3,7 +3,7 @@ package budget
 import (
 	"context"
 
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/policy"
 )
 
 // AttemptKind describes the attempt type being gated.

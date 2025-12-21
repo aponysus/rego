@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aponysus/rego/budget"
-	"github.com/aponysus/rego/classify"
-	"github.com/aponysus/rego/controlplane"
-	"github.com/aponysus/rego/observe"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/budget"
+	"github.com/aponysus/recourse/classify"
+	"github.com/aponysus/recourse/controlplane"
+	"github.com/aponysus/recourse/observe"
+	"github.com/aponysus/recourse/policy"
 )
 
 type Operation func(ctx context.Context) error
@@ -28,7 +28,7 @@ const (
 
 // ErrNoPolicy is returned when MissingPolicyMode=FailureDeny and the executor
 // cannot obtain an authoritative policy.
-var ErrNoPolicy = errors.New("rego: no policy")
+var ErrNoPolicy = errors.New("recourse: no policy")
 
 type NoPolicyError struct {
 	Key policy.PolicyKey
@@ -51,7 +51,7 @@ func (e *NoPolicyError) Is(target error) bool { return target == ErrNoPolicy }
 
 // ErrNoClassifier is returned when MissingClassifierMode=FailureDeny and the executor
 // cannot resolve the requested classifier by name.
-var ErrNoClassifier = errors.New("rego: classifier not found")
+var ErrNoClassifier = errors.New("recourse: classifier not found")
 
 type NoClassifierError struct {
 	Name string
@@ -781,9 +781,9 @@ func terminalError(ctx context.Context, opErr error, out classify.Outcome) error
 		return opErr
 	}
 	if out.Reason != "" {
-		return errors.New("rego: " + out.Reason)
+		return errors.New("recourse: " + out.Reason)
 	}
-	return errors.New("rego: operation failed")
+	return errors.New("recourse: operation failed")
 }
 
 func computeSleep(backoff time.Duration, pol policy.RetryPolicy, out classify.Outcome) time.Duration {

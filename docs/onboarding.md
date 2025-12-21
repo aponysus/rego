@@ -1,17 +1,17 @@
 # Onboarding
 
-This guide is for engineers who know Go and want to understand (or contribute to) `rego`.
+This guide is for engineers who know Go and want to understand (or contribute to) `recourse`.
 
-## What is `rego`?
+## What is `recourse`?
 
-`rego` is a **policy-driven, observability-first** resilience library. Call sites provide a low-cardinality key (e.g. `"svc.Method"`), policies decide behavior for that key, and the executor produces structured telemetry for every attempt.
+`recourse` is a **policy-driven, observability-first** resilience library. Call sites provide a low-cardinality key (e.g. `"svc.Method"`), policies decide behavior for that key, and the executor produces structured telemetry for every attempt.
 
 ## The public API
 
 The “happy path” is a one-liner with a string key:
 
 ```go
-user, err := rego.DoValue[User](
+user, err := recourse.DoValue[User](
     ctx,
     "user-service.GetUser",
     func(ctx context.Context) (User, error) {
@@ -23,7 +23,7 @@ user, err := rego.DoValue[User](
 When you need structured “what happened?” data:
 
 ```go
-user, tl, err := rego.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
+user, tl, err := recourse.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
 _ = tl // inspect tl.Attempts, tl.FinalErr, tl.Attributes, ...
 ```
 
@@ -51,7 +51,7 @@ The repository is modular by design:
 
 | Package | What it does |
 |---|---|
-| `rego` | Thin facade: string-key helpers (`Do*`) and key parsing |
+| `recourse` | Thin facade: string-key helpers (`Do*`) and key parsing |
 | `retry` | Executor: retries/backoff/timeouts, plus timeline/observer wiring |
 | `policy` | Policy keys + schema + normalization/clamping |
 | `controlplane` | Policy providers (today: static provider; remote provider planned) |
@@ -66,7 +66,7 @@ The repository is modular by design:
 2. `docs/roadmap.md` (what’s implemented vs planned)
 3. `docs/extending.md` (early draft extension patterns)
 4. Code:
-   - `rego/rego.go` (facade API)
+   - `recourse/recourse.go` (facade API)
    - `retry/executor.go` (executor + timeline wiring)
    - `observe/types.go` (timeline/attempt records)
    - `policy/schema.go` (policy schema + normalization)

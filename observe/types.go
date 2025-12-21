@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/aponysus/rego/classify"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/classify"
+	"github.com/aponysus/recourse/policy"
 )
 
 // AttemptRecord describes a single attempt (or hedge) execution.

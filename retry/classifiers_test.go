@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aponysus/rego/classify"
-	"github.com/aponysus/rego/controlplane"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/classify"
+	"github.com/aponysus/recourse/controlplane"
+	"github.com/aponysus/recourse/policy"
 )
 
 type stubHTTPError struct {

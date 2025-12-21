@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/aponysus/rego/budget"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/budget"
+	"github.com/aponysus/recourse/policy"
 )
 
 func (e *Executor) allowAttempt(ctx context.Context, key policy.PolicyKey, ref policy.BudgetRef, attemptIdx int, kind budget.AttemptKind) (decision budget.Decision, allowed bool) {

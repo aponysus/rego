@@ -1,8 +1,8 @@
-# rego
+# recourse
 
 Policy-driven, observability-first resilience library for Go services.
 
-## Why `rego`?
+## Why `recourse`?
 
 Retry logic is deceptively easy to write and notoriously hard to operate.
 
@@ -11,9 +11,9 @@ Retry logic is deceptively easy to write and notoriously hard to operate.
 - **Protocol/domain semantics matter**: a timeout, a 429, and a 404 should not all be treated the same.
 - **Debuggability is non-negotiable**: when an incident happens, you need to answer “what happened on each attempt, and why?”.
 
-`rego` centralizes resilience behavior behind a low-cardinality **policy key** and makes every decision observable.
+`recourse` centralizes resilience behavior behind a low-cardinality **policy key** and makes every decision observable.
 
-Concretely, `rego` gives you:
+Concretely, `recourse` gives you:
 
 - **Deterministic envelopes**: bounded attempts, bounded backoff, and explicit timeouts.
 - **Domain-aware retry decisions**: pluggable classifiers (instead of “retry on any error”).
@@ -47,7 +47,7 @@ But production requirements pile up quickly:
 
 ## What “policy-driven” means
 
-In `rego`, call sites supply a **key** (e.g., `"payments.Charge"`). Policies decide the retry envelope for that key:
+In `recourse`, call sites supply a **key** (e.g., `"payments.Charge"`). Policies decide the retry envelope for that key:
 
 - maximum attempts
 - backoff/jitter
@@ -67,13 +67,13 @@ package main
 import (
 	"context"
 
-	"github.com/aponysus/rego/rego"
+	"github.com/aponysus/recourse/recourse"
 )
 
 type User struct{ ID string }
 
 func main() {
-	user, err := rego.DoValue[User](context.Background(), "user-service.GetUser", func(ctx context.Context) (User, error) {
+	user, err := recourse.DoValue[User](context.Background(), "user-service.GetUser", func(ctx context.Context) (User, error) {
 		// call dependency here
 		return User{ID: "123"}, nil
 	})
@@ -85,7 +85,7 @@ func main() {
 When you need to know what happened, request a timeline:
 
 ```go
-user, tl, err := rego.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
+user, tl, err := recourse.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
 _ = user
 _ = err
 
@@ -98,7 +98,7 @@ for _, a := range tl.Attempts {
 
 Retries are only “safe” if they are observable.
 
-`rego` captures a structured `observe.Timeline` (attempt timings, outcomes, budget decisions, errors) and can also stream attempt/timeline events to your own logging/metrics/tracing via `observe.Observer`.
+`recourse` captures a structured `observe.Timeline` (attempt timings, outcomes, budget decisions, errors) and can also stream attempt/timeline events to your own logging/metrics/tracing via `observe.Observer`.
 
 ## What’s inside
 

@@ -1,3 +1,3 @@
-module github.com/aponysus/rego
+module github.com/aponysus/recourse
 
 go 1.22

@@ -1,9 +1,9 @@
-site_name: rego
+site_name: recourse
 site_description: Policy-driven, observability-first resilience library for Go services.
-site_url: https://aponysus.github.io/rego/
+site_url: https://aponysus.github.io/recourse/
 
-repo_url: https://github.com/aponysus/rego
-repo_name: aponysus/rego
+repo_url: https://github.com/aponysus/recourse
+repo_name: aponysus/recourse
 edit_uri: edit/main/docs/
 
 theme:

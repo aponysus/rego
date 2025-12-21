@@ -19,7 +19,7 @@ Providers implement:
 GetEffectivePolicy(ctx context.Context, key policy.PolicyKey) (policy.EffectivePolicy, error)
 ```
 
-Today, `rego` ships with `controlplane.StaticProvider` for in-process policy maps.
+Today, `recourse` ships with `controlplane.StaticProvider` for in-process policy maps.
 
 ## Missing policy behavior
 

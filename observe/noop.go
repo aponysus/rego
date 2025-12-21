@@ -3,7 +3,7 @@ package observe
 import (
 	"context"
 
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/policy"
 )
 
 // NoopObserver implements Observer with no-op methods.

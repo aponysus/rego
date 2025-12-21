@@ -3,15 +3,15 @@
 ## Install
 
 ```bash
-go get github.com/aponysus/rego@latest
+go get github.com/aponysus/recourse@latest
 ```
 
 ## The simplest path (facade)
 
-Use `rego.Do` / `rego.DoValue` for the “zero config” path:
+Use `recourse.Do` / `recourse.DoValue` for the “zero config” path:
 
 ```go
-user, err := rego.DoValue[User](ctx, "user-service.GetUser", func(ctx context.Context) (User, error) {
+user, err := recourse.DoValue[User](ctx, "user-service.GetUser", func(ctx context.Context) (User, error) {
 	return client.GetUser(ctx, userID)
 })
 ```
@@ -21,7 +21,7 @@ Keys must be **low-cardinality** (stable across requests). Good: `"payments.Char
 ## Getting a timeline
 
 ```go
-user, tl, err := rego.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
+user, tl, err := recourse.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
 _ = user
 _ = err
 

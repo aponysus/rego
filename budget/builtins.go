@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/policy"
 )
 
 // UnlimitedBudget allows every attempt.

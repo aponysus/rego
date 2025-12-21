@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aponysus/rego/budget"
-	"github.com/aponysus/rego/controlplane"
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/budget"
+	"github.com/aponysus/recourse/controlplane"
+	"github.com/aponysus/recourse/policy"
 )
 
 type denySecondAttemptBudget struct{}

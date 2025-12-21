@@ -1,10 +1,10 @@
-# rego
+# recourse
 
 Policy-driven, observability-first resilience library in Go for distributed systems.
 
 This repository is **early-stage**. Retry, budgets/backpressure, timelines, and outcome classifiers exist today; hedging, remote control plane, and integrations are still in progress.
 
-Docs site: https://aponysus.github.io/rego/
+Docs site: https://aponysus.github.io/recourse/
 
 ## What you get today
 
@@ -27,12 +27,12 @@ In production systems, resilience code tends to drift:
 - Retry decisions are often too naive (“retry on error”), ignoring protocol/domain semantics.
 - Observability is incomplete (you know it retried, but not why/when/how often).
 
-`rego` centralizes resilience behavior behind a **policy key** and emits structured, per-attempt telemetry.
+`recourse` centralizes resilience behavior behind a **policy key** and emits structured, per-attempt telemetry.
 
 ## Installation
 
 ```bash
-go get github.com/aponysus/rego@latest
+go get github.com/aponysus/recourse@latest
 ```
 
 ## Key concepts
@@ -51,7 +51,7 @@ Policy normalization/clamping is handled by `EffectivePolicy.Normalize()` to kee
 
 ### Timeouts and cancellation
 
-`rego` always respects `context.Context` cancellation.
+`recourse` always respects `context.Context` cancellation.
 
 - If `ctx` is canceled before the first attempt, the operation is not called and `ctx.Err()` is returned.
 - `policy.Retry.TimeoutPerAttempt` wraps each attempt in a per-attempt context timeout.
@@ -68,7 +68,7 @@ Every call can produce an `observe.Timeline`:
 
 ## Quick start
 
-Use the facade package (import path `github.com/aponysus/rego/rego`) for the simplest path:
+Use the facade package (import path `github.com/aponysus/recourse/recourse`) for the simplest path:
 
 ```go
 package main
@@ -76,7 +76,7 @@ package main
 import (
 	"context"
 
-	"github.com/aponysus/rego/rego"
+	"github.com/aponysus/recourse/recourse"
 )
 
 type User struct{ ID string }
@@ -84,7 +84,7 @@ type User struct{ ID string }
 func main() {
 	ctx := context.Background()
 
-	user, err := rego.DoValue[User](ctx, "user-service.GetUser", func(ctx context.Context) (User, error) {
+	user, err := recourse.DoValue[User](ctx, "user-service.GetUser", func(ctx context.Context) (User, error) {
 		// call dependency here
 		return User{ID: "123"}, nil
 	})
@@ -114,7 +114,7 @@ Bad:
 When you need structured “what happened?” data:
 
 ```go
-user, tl, err := rego.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
+user, tl, err := recourse.DoValueWithTimeline[User](ctx, "user-service.GetUser", op)
 _ = user
 _ = err
 
@@ -138,9 +138,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/aponysus/rego/controlplane"
-	"github.com/aponysus/rego/policy"
-	"github.com/aponysus/rego/retry"
+	"github.com/aponysus/recourse/controlplane"
+	"github.com/aponysus/recourse/policy"
+	"github.com/aponysus/recourse/retry"
 )
 
 key := policy.ParseKey("user-service.GetUser")
@@ -227,19 +227,19 @@ You can fan out to multiple observers with `observe.MultiObserver`.
 
 ## API cheat sheet
 
-- Facade (`github.com/aponysus/rego/rego`)
-  - `rego.Do(ctx, key string, op)`
-  - `rego.DoValue[T](ctx, key string, op)`
-  - `rego.DoWithTimeline(ctx, key string, op)`
-  - `rego.DoValueWithTimeline[T](ctx, key string, op)`
-  - `rego.ParseKey(string) policy.PolicyKey`
-- Advanced (`github.com/aponysus/rego/retry`)
+- Facade (`github.com/aponysus/recourse/recourse`)
+  - `recourse.Do(ctx, key string, op)`
+  - `recourse.DoValue[T](ctx, key string, op)`
+  - `recourse.DoWithTimeline(ctx, key string, op)`
+  - `recourse.DoValueWithTimeline[T](ctx, key string, op)`
+  - `recourse.ParseKey(string) policy.PolicyKey`
+- Advanced (`github.com/aponysus/recourse/retry`)
   - `retry.NewExecutor(retry.ExecutorOptions{...})`
   - `retry.DoValue[T](ctx, exec, key, op)`
   - `retry.DoValueWithTimeline[T](ctx, exec, key, op)`
   - `(*retry.Executor).Do(ctx, key, op)`
   - `(*retry.Executor).DoWithTimeline(ctx, key, op)`
-- Budgets (`github.com/aponysus/rego/budget`)
+- Budgets (`github.com/aponysus/recourse/budget`)
   - `budget.NewRegistry()`
   - `budget.UnlimitedBudget{}`
   - `budget.NewTokenBucketBudget(capacity int, refillPerSecond float64)`
@@ -253,7 +253,7 @@ Implemented:
 - Static policy provider (`controlplane.StaticProvider`)
 - Retry executor with backoff/jitter and per-attempt/overall timeouts (`retry`)
 - Timelines + observers (`observe.Timeline`, `observe.Observer`)
-- Facade helpers that accept string keys (`rego.Do*`)
+- Facade helpers that accept string keys (`recourse.Do*`)
 - Outcome classifiers (protocol/domain-aware retry decisions)
 - Budgets/backpressure (per-attempt gating via `policy.Retry.Budget` + `retry.ExecutorOptions.Budgets`, optional release semantics)
 

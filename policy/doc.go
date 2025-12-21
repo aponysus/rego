@@ -1,2 +1,2 @@
-// Package policy defines policy keys and the policy schema used by rego.
+// Package policy defines policy keys and the policy schema used by recourse.
 package policy

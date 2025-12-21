@@ -1,2 +1,2 @@
-// Package controlplane provides policy providers (static and remote) for rego.
+// Package controlplane provides policy providers (static and remote) for recourse.
 package controlplane

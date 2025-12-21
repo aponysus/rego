@@ -3,7 +3,7 @@ package controlplane
 import (
 	"context"
 
-	"github.com/aponysus/rego/policy"
+	"github.com/aponysus/recourse/policy"
 )
 
 // PolicyProvider supplies an EffectivePolicy for a PolicyKey.

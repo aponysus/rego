@@ -12,5 +12,5 @@ func (e *NormalizeError) Error() string {
 	if e == nil {
 		return "<nil>"
 	}
-	return fmt.Sprintf("rego: invalid policy config: %s=%q", e.Field, e.Value)
+	return fmt.Sprintf("recourse: invalid policy config: %s=%q", e.Field, e.Value)
 }
