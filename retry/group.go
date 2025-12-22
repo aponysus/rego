@@ -29,11 +29,8 @@ type groupResult[T any] struct {
 func (e *Executor) doRetryGroup(
 	ctx context.Context,
 	key policy.PolicyKey,
-	op OperationValue[any], // Generic machinery uses 'any' usually, or we use a closure? DoValue is generic T.
-	// We need doRetryGroup to be generic or cast?
-	// Methods on structs cannot have type parameters.
-	// So doRetryGroup must be a function or we use 'any'.
-	// Using 'any' and casting in caller is easier for internal method.
+	// Generic helper for concurrent operations.
+	op OperationValue[any],
 	pol policy.EffectivePolicy,
 	retryIdx int,
 	classifier classify.Classifier,
@@ -42,9 +39,7 @@ func (e *Executor) doRetryGroup(
 	recordAttempt func(context.Context, observe.AttemptRecord),
 ) (any, error, classify.Outcome, bool) {
 
-	// If hedging is disabled, run simpler logic (but same coordination to unify code paths?
-	// Or explicitly optimize? Phase 1 says "Integrated as parallel attempts".
-	// Integrating trivial case (0 hedges) into same logic is fine.
+	// Check if hedging is enabled.
 
 	maxHedges := 0
 	if pol.Hedge.Enabled {
@@ -53,9 +48,7 @@ func (e *Executor) doRetryGroup(
 
 	results := make(chan groupResult[any], 1+maxHedges)
 
-	// Cancellation context for the group.
-	// Use WithCancelCause if available? Go 1.20+.
-	// Assuming modern Go.
+	// Group-level context for cancellation.
 	groupCtx, cancelGroup := context.WithCancel(ctx)
 	defer cancelGroup()
 
@@ -81,10 +74,7 @@ func (e *Executor) doRetryGroup(
 				budgetRef = pol.Hedge.Budget
 			}
 
-			// For hedges, if we exceeded max hedges, should we stop?
-			// The trigger logic handles timing, but we enforce hard limit here?
-			// attemptsLaunched includes primary.
-			// If isHedge=true, idx > 0.
+			// Check budget for this attempt.
 
 			// AllowAttempt
 			decision, allowed := e.allowAttempt(groupCtx, key, budgetRef, retryIdx, budgetKind) // retryIdx is constant for group
@@ -105,10 +95,8 @@ func (e *Executor) doRetryGroup(
 					rec.Backoff = 0 // Hedges don't strictly have "backoff" from previous retry
 				}
 
-				recordAttempt(groupCtx, rec) // Use groupCtx or parent ctx?
-				// denied attempts don't have their own context really.
-
-				// Send "failure" to channel so we don't hang?
+				// Record denial and report failure.
+				recordAttempt(groupCtx, rec)
 				results <- groupResult[any]{
 					err:     errors.New(decision.Reason), // Sentinel?
 					outcome: classify.Outcome{Kind: classify.OutcomeAbort, Reason: decision.Reason},
@@ -268,58 +256,14 @@ func (e *Executor) doRetryGroup(
 		}
 	}()
 
-	// 3. Wait for Results
-	// We wait until:
-	// - Success
-	// - All attempts fail
-	// - FailFast triggers
+	// Wait for results. We return as soon as:
+	// 1. A success is received (wins).
+	// 2. Cancellation occurs.
+	// 3. All attempts fail.
+	// 4. Fail-fast threshold is reached.
 
-	// Wait, activeAttempts is atomic.
-	// But we don't know total attempts in advance due to dynamic spawning.
-
-	// We collect failures.
 	var lastRel groupResult[any]
 	failures := 0
-
-	// We need to know when "all attempts that WILL run have finished".
-	// This covers:
-	// 1. Primary finished.
-	// 2. Hedges finished.
-	// 3. No more hedges will naturally spawn (time constraint?) OR we cancel remaining.
-
-	// Simplified logic:
-	// We loop until `failures == attemptsLaunched` AND `no more hedges can spawn`?
-	// Or we use the channel.
-
-	// Problem: `attemptsLaunched` is dynamic.
-	// We can loop endlessly on `results` channel?
-	// But when do we stop if all fail?
-	// We need to track "potential attempts".
-
-	// If CancelOnFirstTerminal is set:
-	// - On ANY terminal failure, we abort group (return failure).
-
-	// If NO valid result yet:
-	// - If successful, return immediately.
-	// - If failure, increment failures.
-	// - If failures == current_active_and_launched?
-
-	// Workaround:
-	// We only return when:
-	// A) Success
-	// B) CancelOnFirstTerminal && Ternimal Failure
-	// C) All attempts failed. How to detect "All"?
-	//    - Active attempts == 0 AND (hedging done OR timeout)
-
-	// Let's use a simpler approach for Phase 1:
-	// We don't strictly wait for "all hedges that MIGHT have spawned".
-	// If primary fails, and we are waiting for hedge...
-	// If we just return primary failure, subsequent hedge is wasted?
-	// The point of hedging is to recover.
-	// So we MUST wait if a hedge is *running* or *pending*.
-
-	// This suggests we iterate `maxHedges + 1` times on the channel?
-	// No, because we might not spawn all.
 
 	for {
 		select {
@@ -341,24 +285,11 @@ func (e *Executor) doRetryGroup(
 
 			// Check if we are done
 			active := activeAttempts.Load()
-			// If no active attempts, AND (max hedges reached OR primary failed long ago?)
-			// Actually, if active == 0, are we done?
-			// Not necessarily. The timer might spawn a new one in 10ms.
-			// But if Primary failed, and elapsed < HedgeDelay, active=0.
-			// Should we exit?
-			// If we exit, we retry (outer loop).
-			// If we wait, we might spawn hedge.
-			// This is "Retry vs Hedge".
-			// If Primary fails FAST (before hedge delay), usually we just Retry immediately (next loop).
-			// Hedging is for SLOW requests.
-			// If Primary fails, it's not "slow", it's "failed".
-			// So yes, if active==0, we should typically exit.
-			// UNLESS: We want to hedge *failures*?
-			// "Hedging" usually targets latency (timeout/slow).
-			// "Retries" target failures.
-			// So: If all current attempts failed, and we have no active attempts...
-			// Should we wait for next hedge timer?
-			// Usually NO. If primary failed, we go to next Retry attempt.
+			// Check if all active attempts have finished.
+			// If active=0, it means all launched attempts (primary + any hedges so far) have failed.
+			// While valid hedges *might* spawn later if we waited, failure of the Primary
+			// usually suggests we should proceed to the next Retry step rather than waiting
+			// for speculative hedges, unless we strictly hedge *failures* (which is not this mode).
 
 			if active == 0 {
 				// All launched attempts failed.

@@ -62,7 +62,6 @@ type Executor struct {
 	sleep                 func(context.Context, time.Duration) error
 	classifiers           *classify.Registry
 	defaultClassifier     classify.Classifier
-	staticPolicies        map[policy.PolicyKey]policy.EffectivePolicy
 	budgets               *budget.Registry
 	triggers              *hedge.Registry
 	missingPolicyMode     FailureMode
@@ -338,8 +337,7 @@ func doValueInternal[T any](ctx context.Context, exec *Executor, key policy.Poli
 	fullTimeline := wantTimeline || hasCapture || !isNoopObserver(exec.observer)
 
 	if !fullTimeline {
-		// Even in fast path, we must ensure nested calls don't accidentally capture.
-		// Use a wrapped op that suppresses capture.
+		// Use a wrapped op that suppresses capture to prevent implicit capture in nested calls.
 		fastOp := func(c context.Context) (T, error) {
 			return op(observe.WithoutTimelineCapture(c))
 		}
@@ -354,9 +352,8 @@ func doValueInternal[T any](ctx context.Context, exec *Executor, key policy.Poli
 		}
 	}
 
-	// For full timeline, we also want to suppress capture in the op, but doValueWithTimeline
-	// handles constructing the attempt context, so strictly speaking we can wrap here or there.
-	// Wrapping here is consistent.
+	// For full timeline, we also suppress capture in the op.
+	// Wrapping here provides consistency with the fast path.
 	safeOp := func(c context.Context) (T, error) {
 		return op(observe.WithoutTimelineCapture(c))
 	}
@@ -407,10 +404,7 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 		}
 
 		decision, ok := exec.allowAttempt(ctx, key, pol.Retry.Budget, attempt, budget.KindRetry)
-		// Standard allowAttempt emits events, which fast path typically avoids?
-		// But allowAttempt already checks `monitor != nil` (exec.observer).
-		// Wait, if no observer (Fast path), allowAttempt does nothing on emitting.
-		// So it is safe.
+		// Check if attempt is allowed by budget.
 		if !ok {
 			return last, errors.New(decision.Reason)
 		}
@@ -423,10 +417,10 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 			attemptCtx, cancelAttempt = context.WithTimeout(ctx, pol.Retry.TimeoutPerAttempt)
 		}
 
-		// Fast path still provides attempt info for observability/logs in the operation.
+		// Inject attempt info for observability.
 		attemptCtx = observe.WithAttemptInfo(attemptCtx, observe.AttemptInfo{
 			RetryIndex: attempt,
-			Attempt:    attempt, // Fast path has no hedging, so Attempt == RetryIndex
+			Attempt:    attempt,
 			IsHedge:    false,
 			PolicyID:   pol.ID,
 		})
@@ -603,9 +597,6 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			exec.observer.OnFailure(ctx, key, tl)
 			return last, tl, terr
 		}
-		// If reason is "budget_denied", we might want to return lastErr if this was a retry.
-		// Currently `lastErr` IS the error from `doRetryGroup` (which is 'budget denied').
-
 		if attempt == maxAttempts-1 {
 			terr := terminalError(ctx, lastErr, outcome)
 			tl.End = exec.clock()
