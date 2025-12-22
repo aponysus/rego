@@ -238,6 +238,7 @@ func (e *Executor) doRetryGroup(
 					MaxHedges:        maxHedges,
 					Elapsed:          e.clock().Sub(start),
 					Snapshot:         e.getTracker(key).Snapshot(),
+					HedgeDelay:       pol.Hedge.HedgeDelay,
 				}
 
 				should, nextCheck := trig.ShouldSpawnHedge(state)

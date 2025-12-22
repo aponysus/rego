@@ -17,6 +17,8 @@ type HedgeState struct {
 	Elapsed time.Duration
 	// Snapshot contains the current latency statistics for the operation.
 	Snapshot LatencySnapshot
+	// HedgeDelay is the configured delay between hedges, if static.
+	HedgeDelay time.Duration
 }
 
 // Trigger decides when to spawn a hedged attempt.

@@ -16,7 +16,13 @@ func (t FixedDelayTrigger) ShouldSpawnHedge(state HedgeState) (bool, time.Durati
 	// For multiple hedges, we space them out by the delay.
 	// Primary (1) -> Wait Delay -> Hedge 1 (2) -> Wait Delay -> Hedge 2 (3) ...
 	// Target elapsed time for the *next* hedge is Delay * AttemptsLaunched.
-	target := t.Delay * time.Duration(state.AttemptsLaunched)
+	// Target elapsed time for the *next* hedge is Delay * AttemptsLaunched.
+	delay := t.Delay
+	if state.HedgeDelay > 0 {
+		delay = state.HedgeDelay
+	}
+
+	target := delay * time.Duration(state.AttemptsLaunched)
 	if state.Elapsed < target {
 		return false, target - state.Elapsed
 	}

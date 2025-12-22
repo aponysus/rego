@@ -25,18 +25,7 @@ var (
 
 	// errHedgingRequiresTimeline is an internal sentinel used to switch from fast path to strict path.
 	errHedgingRequiresTimeline = errors.New("recourse: hedging requires timeline")
-
-	defaultExecutor     *Executor
-	defaultExecutorOnce sync.Once
 )
-
-// DefaultExecutor returns the global default executor.
-func DefaultExecutor() *Executor {
-	defaultExecutorOnce.Do(func() {
-		defaultExecutor = NewExecutor()
-	})
-	return defaultExecutor
-}
 
 // FailureMode controls behavior when a dependency is missing.
 type FailureMode int
@@ -256,6 +245,16 @@ func WithClassifiers(r *classify.Registry) ExecutorOption {
 func WithDefaultClassifier(cls classify.Classifier) ExecutorOption {
 	return func(c *executorConfig) {
 		c.opts.DefaultClassifier = cls
+	}
+}
+
+// WithClassifier adds or replaces a classifier in the registry.
+func WithClassifier(name string, cls classify.Classifier) ExecutorOption {
+	return func(c *executorConfig) {
+		if c.opts.Classifiers == nil {
+			c.opts.Classifiers = classify.NewRegistry()
+		}
+		c.opts.Classifiers.Register(name, cls)
 	}
 }
 

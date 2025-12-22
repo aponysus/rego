@@ -18,6 +18,7 @@ func RegisterBuiltins(reg *Registry) {
 	}
 	reg.Register(ClassifierAlwaysRetryOnError, AlwaysRetryOnError{})
 	reg.Register(ClassifierHTTP, HTTPClassifier{})
+	reg.Register("auto", AutoClassifier{})
 }
 
 // AlwaysRetryOnError classifies nil errors as success and all other errors as retryable,
