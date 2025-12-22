@@ -11,6 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Ensure gh-pages branch for benchmarks
+        run: |
+          git config user.name "github-action-benchmark"
+          git config user.email "github@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            exit 0
+          fi
+          current_branch=$(git rev-parse --abbrev-ref HEAD)
+          git checkout --orphan gh-pages
+          git clean -fdx
+          echo "# Benchmark data" > README.md
+          git add README.md
+          git commit -m "Initialize gh-pages for benchmarks"
+          git push origin gh-pages
+          git checkout "$current_branch"
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
