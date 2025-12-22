@@ -40,6 +40,12 @@ type HedgePolicy struct {
 	Budget                BudgetRef     `json:"budget,omitempty"`
 }
 
+type CircuitPolicy struct {
+	Enabled   bool          `json:"enabled"`
+	Threshold int           `json:"threshold"` // Consecutive failures
+	Cooldown  time.Duration `json:"cooldown"`
+}
+
 type PolicySource string
 
 const (
@@ -61,10 +67,11 @@ type Metadata struct {
 }
 
 type EffectivePolicy struct {
-	Key   PolicyKey   `json:"key"`
-	ID    string      `json:"id,omitempty"`
-	Retry RetryPolicy `json:"retry"`
-	Hedge HedgePolicy `json:"hedge"`
+	Key     PolicyKey     `json:"key"`
+	ID      string        `json:"id,omitempty"`
+	Retry   RetryPolicy   `json:"retry"`
+	Hedge   HedgePolicy   `json:"hedge"`
+	Circuit CircuitPolicy `json:"circuit"`
 
 	Meta Metadata `json:"-"`
 }
@@ -93,6 +100,11 @@ func DefaultPolicyFor(key PolicyKey) EffectivePolicy {
 				Cost: 1,
 			},
 		},
+		Circuit: CircuitPolicy{
+			Enabled:   false,
+			Threshold: 0,
+			Cooldown:  0,
+		},
 		Meta: Metadata{
 			Source: PolicySourceDefault,
 		},
@@ -108,6 +120,8 @@ const (
 	maxBackoffCeiling    = 30 * time.Second
 	minTimeoutFloor      = 1 * time.Millisecond
 	maxBackoffMultiplier = 10.0
+	minCircuitThreshold  = 1
+	minCircuitCooldown   = 100 * time.Millisecond
 )
 
 func (p EffectivePolicy) Normalize() (EffectivePolicy, error) {
@@ -238,6 +252,28 @@ func (p EffectivePolicy) Normalize() (EffectivePolicy, error) {
 	if normalized.Hedge.HedgeDelay < minHedgeDelayFloor {
 		normalized.Hedge.HedgeDelay = minHedgeDelayFloor
 		markChanged("hedge.hedge_delay")
+	}
+
+	if !normalized.Circuit.Enabled {
+		return normalized, nil
+	}
+
+	if normalized.Circuit.Threshold <= 0 {
+		normalized.Circuit.Threshold = 5
+		markChanged("circuit.threshold")
+	}
+	if normalized.Circuit.Threshold < minCircuitThreshold {
+		normalized.Circuit.Threshold = minCircuitThreshold
+		markChanged("circuit.threshold")
+	}
+
+	if normalized.Circuit.Cooldown <= 0 {
+		normalized.Circuit.Cooldown = 10 * time.Second
+		markChanged("circuit.cooldown")
+	}
+	if normalized.Circuit.Cooldown < minCircuitCooldown {
+		normalized.Circuit.Cooldown = minCircuitCooldown
+		markChanged("circuit.cooldown")
 	}
 
 	return normalized, nil

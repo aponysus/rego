@@ -49,6 +49,17 @@ exec := retry.NewExecutor(
 		policy.MaxAttempts(3),
 		policy.Classifier(classify.ClassifierHTTP),
 		policy.Budget("global"),
+		// Enable Circuit Breaking
+		policy.WithCircuitBreaker(policy.CircuitPolicy{
+			Enabled:   true,
+			Threshold: 5,
+			Cooldown:  10 * time.Second,
+		}),
+		// Enable Hedging
+		policy.WithHedge(policy.HedgePolicy{
+			Enabled:    true,
+			HedgeDelay: 10 * time.Millisecond,
+		}),
 	),
 )
 

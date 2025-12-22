@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/aponysus/recourse/budget"
+	"github.com/aponysus/recourse/circuit"
 	"github.com/aponysus/recourse/classify"
 	"github.com/aponysus/recourse/controlplane"
 	"github.com/aponysus/recourse/hedge"
@@ -75,6 +76,7 @@ type Executor struct {
 	defaultClassifier     classify.Classifier
 	budgets               *budget.Registry
 	triggers              *hedge.Registry
+	circuits              *circuit.Registry
 	missingPolicyMode     FailureMode
 	missingClassifierMode FailureMode
 	missingBudgetMode     FailureMode
@@ -99,6 +101,7 @@ type ExecutorOptions struct {
 	DefaultClassifier     classify.Classifier
 	Budgets               *budget.Registry
 	Triggers              *hedge.Registry
+	Circuits              *circuit.Registry
 	MissingPolicyMode     FailureMode
 	MissingClassifierMode FailureMode
 	MissingBudgetMode     FailureMode
@@ -133,6 +136,7 @@ func NewExecutorFromOptions(opts ExecutorOptions) *Executor {
 		defaultClassifier:     opts.DefaultClassifier,
 		budgets:               opts.Budgets,
 		triggers:              opts.Triggers,
+		circuits:              opts.Circuits,
 		missingPolicyMode:     normalizeFailureMode(opts.MissingPolicyMode, FailureDeny),
 		missingClassifierMode: normalizeFailureMode(opts.MissingClassifierMode, FailureFallback),
 		missingBudgetMode:     normalizeFailureMode(opts.MissingBudgetMode, FailureDeny),
@@ -156,6 +160,12 @@ func NewExecutorFromOptions(opts ExecutorOptions) *Executor {
 	if e.classifiers == nil {
 		e.classifiers = classify.NewRegistry()
 		classify.RegisterBuiltins(e.classifiers)
+	}
+	if e.triggers == nil {
+		e.triggers = hedge.NewRegistry()
+	}
+	if e.circuits == nil {
+		e.circuits = circuit.NewRegistry()
 	}
 	if e.defaultClassifier == nil {
 		e.defaultClassifier = classify.AlwaysRetryOnError{}
@@ -199,6 +209,16 @@ type NoClassifierError struct {
 
 func (e *NoClassifierError) Error() string {
 	return fmt.Sprintf("recourse: classifier not found: %s", e.Name)
+}
+
+// CircuitOpenError is returned when a circuit breaker prevents execution.
+type CircuitOpenError struct {
+	State  circuit.State
+	Reason string
+}
+
+func (e CircuitOpenError) Error() string {
+	return fmt.Sprintf("recourse: circuit %s: %s", e.State, e.Reason)
 }
 
 // ExecutorOption configures an Executor.
@@ -250,6 +270,13 @@ func WithBudgetRegistry(r *budget.Registry) ExecutorOption {
 func WithHedgeTriggerRegistry(r *hedge.Registry) ExecutorOption {
 	return func(c *executorConfig) {
 		c.opts.Triggers = r
+	}
+}
+
+// WithCircuitRegistry sets the circuit breaker registry.
+func WithCircuitRegistry(r *circuit.Registry) ExecutorOption {
+	return func(c *executorConfig) {
+		c.opts.Circuits = r
 	}
 }
 
@@ -340,6 +367,7 @@ func doValueInternal[T any](ctx context.Context, exec *Executor, key policy.Poli
 			DefaultClassifier:     exec.defaultClassifier,
 			Budgets:               exec.budgets,
 			Triggers:              exec.triggers,
+			Circuits:              exec.circuits,
 			MissingPolicyMode:     exec.missingPolicyMode,
 			MissingBudgetMode:     exec.missingBudgetMode,
 			MissingClassifierMode: exec.missingClassifierMode,
@@ -410,6 +438,9 @@ func doValueFast[T any](ctx context.Context, exec *Executor, key policy.PolicyKe
 
 	if pol.Hedge.Enabled {
 		return zero, errHedgingRequiresTimeline
+	}
+	if pol.Circuit.Enabled {
+		return zero, errHedgingRequiresTimeline // Reuse sentinel for now to force full path
 	}
 
 	classifier, _, err := resolveClassifier(exec, pol)
@@ -517,6 +548,7 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 
 	start := exec.clock()
 
+	// 1. Resolve Policy
 	pol, attrs, err := resolvePolicyWithAttributes(ctx, exec, key)
 	if err != nil {
 		tl := observe.Timeline{
@@ -531,6 +563,39 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 		exec.observer.OnStart(ctx, key, pol)
 		exec.observer.OnFailure(ctx, key, tl)
 		return zero, tl, err
+	}
+
+	// 2. Check Circuit Breaker
+	var cb circuit.CircuitBreaker
+	if pol.Circuit.Enabled {
+		cb = exec.circuits.Get(key, pol.Circuit)
+		if cb != nil {
+			decision := cb.Allow(ctx)
+			if !decision.Allowed {
+				tl := observe.Timeline{
+					Key:        key,
+					PolicyID:   pol.ID,
+					Start:      start,
+					End:        exec.clock(),
+					Attributes: attrs,
+					Attempts:   nil,
+					FinalErr:   CircuitOpenError{State: decision.State, Reason: decision.Reason},
+				}
+				tl.Attributes["circuit_state"] = decision.State.String()
+				exec.observer.OnStart(ctx, key, pol)
+				exec.observer.OnFailure(ctx, key, tl)
+				// Record failure? IP says: "On OutcomeAbort: Do not report".
+				// Circuit rejection is arguably a failure of availability, but we didn't attempt.
+				// Usually we don't record failure to the breaker if the breaker itself rejected it
+				// (preventing feedback loop).
+				return zero, tl, tl.FinalErr
+			}
+			// If allowed, we proceed.
+			// Half-open state might affect hedging later.
+			if decision.State == circuit.StateHalfOpen {
+				pol.Hedge.Enabled = false
+			}
+		}
 	}
 
 	classifier, cmeta, err := resolveClassifier(exec, pol)
@@ -596,6 +661,9 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			tl.End = exec.clock()
 			tl.FinalErr = err
 			exec.observer.OnFailure(ctx, key, tl)
+			// Context canceled before attempt.
+			// Should we report this to breaker?
+			// Usually Context Canceled is OutcomeAbort, which we don't report.
 			return last, tl, err
 		}
 
@@ -614,6 +682,11 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 		)
 
 		if success {
+			// Record success to circuit breaker
+			if cb != nil {
+				cb.RecordSuccess(ctx)
+			}
+
 			tl.End = exec.clock()
 			tl.FinalErr = nil
 			exec.observer.OnSuccess(ctx, key, tl)
@@ -629,6 +702,24 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 		}
 
 		if isTerminal {
+			// Record failure to circuit breaker (if not abort?)
+			// Abort typically means user cancelled or configuration error.
+			// NonRetryable means application error (e.g. 400 Bad Request, or logic error).
+			// Circuit breakers usually track *system* availability/errors (5xx).
+			// If outcome.Kind is NonRetryable, does it count as system failure?
+			// Depends on classifier.
+			// Usually we record failure if it's "Error" and not "Abort".
+			// But OutcomeRetryable is also an error.
+			// So failures = Retryable + NonRetryable (if it's an error type we care about).
+			// Wait, NonRetryable might be "valid response but error".
+			// If we want to fail fast on 500s, those are usually Retryable (until max attempts).
+			// If we want to fail fast on 400s? Probably not.
+			// But Circuit Breaker interface handles RecordFailure.
+			// Logic: If outcome is Abort, ignore. Else, RecordFailure.
+			if cb != nil && outcome.Kind != classify.OutcomeAbort {
+				cb.RecordFailure(ctx)
+			}
+
 			terr := terminalError(ctx, lastErr, outcome)
 			if attempt > 0 && prevErr != nil && outcome.Reason == "budget_denied" {
 				terr = prevErr
@@ -641,6 +732,11 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			return last, tl, terr
 		}
 		if attempt == maxAttempts-1 {
+			// Max attempts reached, still failing.
+			if cb != nil && outcome.Kind != classify.OutcomeAbort {
+				cb.RecordFailure(ctx)
+			}
+
 			terr := terminalError(ctx, lastErr, outcome)
 			tl.End = exec.clock()
 			tl.FinalErr = terr

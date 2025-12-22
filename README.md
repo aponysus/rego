@@ -2,7 +2,7 @@
 
 Policy-driven, observability-first resilience library in Go for distributed systems.
 
-This repository is **early-stage**. Retry, budgets/backpressure, timelines, and outcome classifiers exist today; hedging, remote control plane, and integrations are still in progress.
+This repository is **early-stage**. Retry, budgets/backpressure, timelines, outcome classifiers, hedging (fixed-delay & latency-aware), and circuit breakers exist today. Remote control plane and comprehensive integrations are in progress.
 
 Docs site: https://aponysus.github.io/recourse/
 
@@ -67,6 +67,21 @@ Every call can produce an `observe.Timeline`:
 - One `AttemptRecord` per attempt
 - Optional observer callbacks (`observe.Observer`) for logs/metrics/tracing integrations
 - Budget gating decisions (`observe.BudgetDecisionEvent`)
+
+### Hedging
+
+Policies can enable **hedging** to reduce tail latency by spawning concurrent attempts.
+
+- **Fixed Delay**: Spawn a second attempt if the first takes longer than `X ms`.
+- **Latency-Aware**: Automatically hedge if the attempt exceeds the P99 latency of recent requests (`hedge.LatencyTrigger`).
+
+### Circuit Breaking
+
+To prevent cascading failures, policies can enable **circuit breakers**.
+
+- **Fail-Fast**: Open circuits reject attempts immediately with `ReasonCircuitOpen`.
+- **Automatic Recovery**: After a cooldown, the breaker allows a single probe to check if the dependency has recovered (`StateHalfOpen`).
+- **Integration**: Circuit state automatically disables hedging to reduce load during recovery.
 
 ## Quick start
 
@@ -236,6 +251,8 @@ You can fan out to multiple observers with `observe.MultiObserver`.
   - `policy.New(key, opts...)`
   - `policy.HTTPDefaults()`, `policy.DatabaseDefaults()`
   - `policy.MaxAttempts(n)`, `policy.Backoff(...)`
+  - `policy.WithHedge(policy.HedgePolicy{...})`
+  - `policy.WithCircuitBreaker(policy.CircuitPolicy{...})`
 - Observability
   - `observe.RecordTimeline(ctx)`
   - `observe.TimelineCaptureFromContext(ctx)`
@@ -243,25 +260,30 @@ You can fan out to multiple observers with `observe.MultiObserver`.
   - `budget.NewRegistry()`
   - `budget.UnlimitedBudget{}`
   - `budget.NewTokenBucketBudget(capacity int, refillPerSecond float64)`
+- Circuit Breakers (`github.com/aponysus/recourse/circuit`)
+  - `circuit.NewRegistry()`
+- Hedging (`github.com/aponysus/recourse/hedge`)
+  - `hedge.NewRegistry()`
+  - `hedge.NewLatencyTrigger("p99")`
 
 ## Current status
 
 Implemented:
 
-- Policy keys + parsing (`policy.PolicyKey`, `policy.ParseKey`)
-- Policy schema + normalization (`policy.EffectivePolicy`, `EffectivePolicy.Normalize`)
-- Static policy provider (`controlplane.StaticProvider`)
-- Retry executor with backoff/jitter and per-attempt/overall timeouts (`retry`)
-- Timelines + observers (`observe.Timeline`, `observe.Observer`)
-- Facade helpers that accept string keys (`recourse.Do*`)
-- Outcome classifiers (protocol/domain-aware retry decisions)
-- Budgets/backpressure (per-attempt gating via `policy.Retry.Budget` + `retry.ExecutorOptions.Budgets`, optional release semantics)
+- **Policy keys + parsing**: `policy.PolicyKey`, `policy.ParseKey`
+- **Policy schema**: `policy.EffectivePolicy`, `EffectivePolicy.Normalize`
+- **Retry executor**: Backoff/jitter, per-attempt/overall timeouts
+- **Budgets/Backpressure**: `budget.Budget`, `retry.ExecutorOptions.Budgets`, fail-closed by default
+- **Observation**: `observe.Timeline`, `observe.RecordTimeline`, standardized reason codes
+- **Hedging**: Fixed-delay and latency-aware (P99) hedging triggers
+- **Circuit Breaking**: `ConsecutiveFailureBreaker`, fail-fast on open circuits
+- **Ergonomics**: Functional options for policies/executors
 
 Planned (see `docs/roadmap.md`):
 
-- Hedging (fixed-delay and latency-aware)
-- Remote control-plane provider (caching + last-known-good)
-- HTTP/gRPC integrations
+- **Remote control-plane**: Dynamic policy updates, caching
+- **Integrations**: HTTP/gRPC helpers
+- **Hardening**: Negative caching for missing keys
 
 ## Project docs
 

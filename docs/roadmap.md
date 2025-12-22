@@ -11,19 +11,13 @@ Implemented today:
 - Static in-process policy provider
 - Timelines (`observe.Timeline`) and observer callbacks (`observe.Observer`)
 - Outcome classifiers (`classify.Classifier`) selected by policy
-- Budgets/backpressure (per-attempt gating via `budget` + `ExecutorOptions.Budgets`)
+- Budgets/backpressure (per-attempt gating via `budget` + `ExecutorOptions.Budgets`, fail-closed defaults)
 - Facade helpers that accept string keys (`recourse.Do*`)
 - API Ergonomics: Functional options for policies/executors and timeline capture context
+- Hedging: Fixed-delay and Latency-Aware (P99) triggers
+- Circuit Breaking: Consecutive failure breaker with half-open recovery
 
 ## Planned phases (high level)
-
-### Budgets
-
-Budgets/backpressure are implemented for retries; next is extending budgets to cover hedges and richer backpressure models.
-
-### Hedging
-
-Add fixed-delay hedging, then latency-aware triggers, with strict concurrency/cancellation guarantees.
 
 ### Remote control plane
 
