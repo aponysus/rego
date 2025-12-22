@@ -124,5 +124,7 @@ Retries are only “safe” if they are observable.
   - [Circuit Breaking](concepts/circuit-breaking.md)
   - [Remote Configuration](concepts/remote-configuration.md)
   - [Integrations](concepts/integrations.md)
+- Architecture decisions:
+  - [ADR 001: Low-cardinality policy keys](adr/001-low-cardinality-keys.md)
+  - [ADR 003: Policy normalization](adr/003-policy-normalization.md)
 - [Extending](extending.md) – write custom classifiers/budgets/observers.
-
