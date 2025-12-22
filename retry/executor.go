@@ -702,20 +702,7 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 		}
 
 		if isTerminal {
-			// Record failure to circuit breaker (if not abort?)
-			// Abort typically means user cancelled or configuration error.
-			// NonRetryable means application error (e.g. 400 Bad Request, or logic error).
-			// Circuit breakers usually track *system* availability/errors (5xx).
-			// If outcome.Kind is NonRetryable, does it count as system failure?
-			// Depends on classifier.
-			// Usually we record failure if it's "Error" and not "Abort".
-			// But OutcomeRetryable is also an error.
-			// So failures = Retryable + NonRetryable (if it's an error type we care about).
-			// Wait, NonRetryable might be "valid response but error".
-			// If we want to fail fast on 500s, those are usually Retryable (until max attempts).
-			// If we want to fail fast on 400s? Probably not.
-			// But Circuit Breaker interface handles RecordFailure.
-			// Logic: If outcome is Abort, ignore. Else, RecordFailure.
+			// Record failure to circuit breaker (unless it's an abort/cancellation).
 			if cb != nil && outcome.Kind != classify.OutcomeAbort {
 				cb.RecordFailure(ctx)
 			}
