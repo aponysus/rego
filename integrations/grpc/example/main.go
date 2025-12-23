@@ -21,8 +21,6 @@ func main() {
 	// 2. Setup gRPC connection with Interceptor
 	interceptor := integration.UnaryClientInterceptor(exec, nil) // use default key func
 
-	// Note: grpc.Dial is deprecated in newer versions, assuming NewClient.
-	// If standard library is used, we use NewClient.
 	conn, err := grpc.NewClient("localhost:50051",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(interceptor),

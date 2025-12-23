@@ -86,13 +86,7 @@ func (cb *ConsecutiveFailureBreaker) RecordSuccess(ctx context.Context) {
 		if cb.probesSuccessful >= cb.probesRequired {
 			cb.transitionTo(StateClosed)
 		} else {
-			// Stay in HalfOpen but release probe slot?
-			// Strictly speaking, MaxProbes limits *concurrent* checks.
-			// But here we implement a simple count.
-			// Since we want to allow *more* probes if we haven't closed yet?
-			// Usually Half-open is "send 1, see if it works".
-			// If it works, close.
-			// If we require N successes, we decrement active probes.
+			// Free a probe slot until required successes are met.
 			cb.probesSent--
 		}
 	}

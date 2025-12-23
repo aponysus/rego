@@ -24,7 +24,9 @@ Example:
 
 ```go
 budgets := budget.NewRegistry()
-budgets.Register("global", budget.NewTokenBucketBudget(100, 50))
+if err := budgets.Register("global", budget.NewTokenBucketBudget(100, 50)); err != nil {
+	panic(err)
+}
 
 exec := retry.NewExecutor(retry.ExecutorOptions{
 	Budgets: budgets,

@@ -145,10 +145,6 @@ func (e *Executor) doRetryGroup(
 			// Execute
 			var val any
 			var err error
-
-			// Safe execution with panic recovery is handled inside... wait, we need to call op.
-			// op expects T. We have `OperationValue[any]` forced cast wrapper?
-			// Caller will wrap op to return `any`.
 			val, err = op(attemptCtx)
 
 			end := e.clock()
@@ -246,11 +242,7 @@ func (e *Executor) doRetryGroup(
 					hedgesLaunched++
 					launch(hedgesLaunched, true)
 
-					// If we spawned, we might need to spawn another immediately
-					// or calculate the delay for the next one.
-					// Check again immediately (but respect maxHedges loop check).
-					// Drain channel if needed before Reset?
-					// NewTimer(0) fires immediately.
+					// Re-check immediately to allow back-to-back hedges.
 					if hedgesLaunched < maxHedges {
 						timer.Reset(0)
 					}

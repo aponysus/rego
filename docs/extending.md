@@ -61,7 +61,9 @@ Budgets are selected by policy (`Retry.Budget.Name`) and resolved via the execut
 
 ```go
 budgets := budget.NewRegistry()
-budgets.Register("tb", budget.NewTokenBucketBudget(100, 50)) // capacity=100, refill=50 tokens/sec
+if err := budgets.Register("tb", budget.NewTokenBucketBudget(100, 50)); err != nil { // capacity=100, refill=50 tokens/sec
+	panic(err)
+}
 
 exec := retry.NewExecutor(
 	retry.WithProvider(provider),

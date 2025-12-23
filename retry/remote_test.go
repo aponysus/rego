@@ -11,9 +11,7 @@ import (
 	"github.com/aponysus/recourse/policy"
 )
 
-// MockSource is a copy of the mock from controlplane, but we can't import internal test helpers.
-// So we define a local one or make the other one exported.
-// For now, defining local simple mock.
+// Local mock since controlplane test helpers are internal.
 type MockSource struct {
 	GetPolicyFunc func(ctx context.Context, key policy.PolicyKey) (policy.EffectivePolicy, error)
 	Calls         int32
@@ -104,10 +102,7 @@ func TestExecutor_RemoteProvider_NegativeLink(t *testing.T) {
 	if err == nil {
 		t.Error("expected error, got nil")
 	} else if !errors.Is(err, ErrNoPolicy) {
-		// Executor wraps the error in NoPolicyError, which wraps the underlying error.
-		// ErrNoPolicy is the generic sentinel? Or NoPolicyError.
-		// Executor returns &NoPolicyError{Key: key, Err: err}.
-		// check if As
+		// Expect NoPolicyError wrapping ErrPolicyNotFound.
 		var npe *NoPolicyError
 		if errors.As(err, &npe) {
 			if !errors.Is(npe.Err, controlplane.ErrPolicyNotFound) {

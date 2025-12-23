@@ -36,7 +36,7 @@ func NewDefaultExecutor(opts ...DefaultOption) *Executor {
 
 	// Budgets
 	budgetReg := budget.NewRegistry()
-	budgetReg.Register("unlimited", &budget.UnlimitedBudget{})
+	budgetReg.MustRegister("unlimited", &budget.UnlimitedBudget{})
 	defaultOpts = append(defaultOpts, WithBudgetRegistry(budgetReg))
 
 	// Triggers

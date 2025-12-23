@@ -40,10 +40,7 @@ func TestExecutor_DynamicHedging_P50(t *testing.T) {
 		},
 	})
 
-	// Override clock/sleep for deterministic testing?
-	// Real-time testing is easier for stats if we inject delays.
-	// But flaky.
-	// Let's use real time but large enough margins.
+	// Use real time with generous margins.
 
 	// 3. Prime the tracker with "fast" calls (e.g., 5ms)
 	// We need to execute calls that finish quickly.
@@ -112,14 +109,7 @@ func TestExecutor_DynamicHedging_P50(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// We expect the result to be 100 (from hedge) because it finishes first.
-	// Primary takes 50ms. Hedge takes 0ms (immediate).
-	// Hedge Trigger P50 is ~5ms.
-	// Primary starts T=0.
-	// T=5ms -> Hedge spawns.
-	// T=5ms+epsilon -> Hedge returns 100.
-	// Group returns 100.
-	// Primary is cancelled.
+	// Expect hedge result due to early trigger.
 
 	if val != 100 {
 		t.Errorf("val=%d, want 100 (from hedge)", val)

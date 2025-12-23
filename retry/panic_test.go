@@ -54,15 +54,7 @@ func (panicClassifierRegistry) Get(name string) (classify.Classifier, bool) {
 	panic("registry panic")
 }
 
-// We can't easily mock Registry since it's a struct, not interface.
-// But we can rely on integration test or modify the ExecutorOptions to specific usage?
-// Ah, ExecutorOptions takes *classify.Registry. We can't mock it easily unless we hack internal state
-// or if we rely on a classifier that panics?
-// Wait, resolveClassifier calls exec.classifiers.Get(name).
-// classify.Registry is a struct with a map and mutex. It shouldn't panic unless we pass nil or something?
-// Actually if `Get` method panics... but it's a concrete type method.
-// So we can't mock `Get` unless we change `Executor` to use an interface for registry?
-// Or we just test `classify` panic, which calls `Classifier.Classify`.
+// Registry is concrete, so we test a panicking classifier instead.
 
 type panicClassifier struct{}
 

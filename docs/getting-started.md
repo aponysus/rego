@@ -57,7 +57,9 @@ If you want to supply policies, classifiers, and budgets explicitly, build a `re
 
 ```go
 budgets := budget.NewRegistry()
-budgets.Register("global", budget.NewTokenBucketBudget(100, 50)) // capacity=100, refill=50 tokens/sec
+if err := budgets.Register("global", budget.NewTokenBucketBudget(100, 50)); err != nil { // capacity=100, refill=50 tokens/sec
+	panic(err)
+}
 
 pol := policy.New("user-service.GetUser",
 	policy.MaxAttempts(3),

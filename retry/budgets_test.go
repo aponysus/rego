@@ -42,7 +42,7 @@ func TestExecutor_BudgetDeniesSecondAttempt_StopsRetryAndReturnsLastErr(t *testi
 	key := policy.PolicyKey{Name: "x"}
 
 	budgets := budget.NewRegistry()
-	budgets.Register("b", denySecondAttemptBudget{})
+	budgets.MustRegister("b", denySecondAttemptBudget{})
 
 	exec := NewExecutorFromOptions(ExecutorOptions{
 		Budgets: budgets,
@@ -127,17 +127,7 @@ func TestExecutor_MissingBudgetName_DeniesAttemptsByDefault(t *testing.T) {
 		t.Fatalf("calls=%d, want 0", calls)
 	}
 	if len(tl.Attempts) != 1 {
-		// Even if denied immediately, we record an "attempt" (or rather a timeline event for the denial)?
-		// Wait, allowAttempt returns false.
-		// In doValueFast/doValueWithTimeline:
-		// decision, ok := allowAttempt(...)
-		// if !ok { return zero, terminalError(...) }
-
-		// Wait, if !ok, we do append an attempt record in doValueWithTimeline!
-		// But in doValueFast we return immediately.
-		// Detailed check:
-		// doValueWithTimeline line 388: if !ok { ... tl.Attempts = append(...) ... return ... }
-		// So we expect 1 attempt record (the denial).
+		// Denials still record one attempt in the timeline.
 		t.Fatalf("attempts=%d, want 1", len(tl.Attempts))
 	}
 
@@ -202,7 +192,7 @@ func TestExecutor_BudgetRelease_CalledOncePerAllowedAttempt(t *testing.T) {
 
 	cb := &countingReleaseBudget{}
 	budgets := budget.NewRegistry()
-	budgets.Register("b", cb)
+	budgets.MustRegister("b", cb)
 
 	exec := NewExecutorFromOptions(ExecutorOptions{
 		Budgets: budgets,

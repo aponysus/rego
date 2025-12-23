@@ -20,7 +20,9 @@ func main() {
 	obs := NewPrometheusObserver(reg)
 
 	budgets := budget.NewRegistry()
-	budgets.Register("example", budget.NewTokenBucketBudget(5, 2))
+	if err := budgets.Register("example", budget.NewTokenBucketBudget(5, 2)); err != nil {
+		log.Fatalf("register budget: %v", err)
+	}
 
 	exec := retry.NewExecutor(
 		retry.WithObserver(obs),

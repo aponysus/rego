@@ -34,14 +34,7 @@ func DoHTTP(ctx context.Context, exec *retry.Executor, key policy.PolicyKey, cli
 
 		resp, err := client.Do(outReq)
 		if err != nil {
-			// Transport error or context error.
-			// We wrap it to interface with AutoClassifier if needed, but standard errors (context) might be wrapped.
-			// However, AutoClassifier delegates to AlwaysRetry which checks errors.Is.
-			// If we return raw error, AlwaysRetry works.
-			// If we return StatusError with code 0, AutoClassifier sends to HTTPClassifier.
-			// HTTPClassifier handles code 0 + idempotent check.
-
-			// So, if we want idempotency check, we MUST use StatusError.
+			// Wrap transport errors so HTTP classification (idempotency) applies.
 			return nil, &StatusError{
 				Err:    err,
 				Method: req.Method,

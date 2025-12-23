@@ -99,9 +99,7 @@ func TestDoHTTP_RespectsRetryAfter(t *testing.T) {
 }
 
 func TestDoHTTP_DrainsAndClosesExample(t *testing.T) {
-	// Verifying that the body is closed is verified by the fact that we can modify the
-	// response handling logic without leaking connections in a tight loop.
-	// For this test, we rely on the server behavior and the absence of connection errors.
+	// Ensure response bodies are drained/closed to avoid leaks.
 
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

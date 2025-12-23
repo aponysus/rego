@@ -18,16 +18,9 @@ func NewRegistry() *Registry {
 	return &Registry{m: make(map[string]Budget)}
 }
 
-// Register associates name with b. Empty names and nil budgets are ignored.
-// Register associates name with b. Empty names, nil budgets, and typed-nil budgets are ignored.
-// Deprecated: Use MustRegister or RegisterE for stricter validation.
-func (r *Registry) Register(name string, b Budget) {
-	_ = r.RegisterE(name, b)
-}
-
-// RegisterE registers a budget with validation.
-// It returns an error if the name is empty, the budget is nil/typed-nil, or the registry is nil.
-func (r *Registry) RegisterE(name string, b Budget) error {
+// Register registers a budget with validation.
+// It returns an error if the registry is nil, the name is empty, or the budget is nil/typed-nil.
+func (r *Registry) Register(name string, b Budget) error {
 	if r == nil {
 		return errors.New("registry is nil")
 	}
@@ -51,7 +44,7 @@ func (r *Registry) RegisterE(name string, b Budget) error {
 
 // MustRegister registers a budget and panics on error.
 func (r *Registry) MustRegister(name string, b Budget) {
-	if err := r.RegisterE(name, b); err != nil {
+	if err := r.Register(name, b); err != nil {
 		panic("budget.Registry.MustRegister: " + err.Error())
 	}
 }

@@ -79,11 +79,7 @@ func (b *TokenBucketBudget) AllowAttempt(_ context.Context, _ policy.PolicyKey, 
 		}
 		b.last = now
 	} else {
-		// Clock skew (now < last) or no refill.
-		// We just advance last to now to avoid stuck timestamp if clock jumps back and forth?
-		// Or keep last? If we keep last, we might refill properly when clock catches up.
-		// Existing behavior: b.last = now. This resets logic, penalizing negative skew.
-		// Let's stick to existing behavior but ensure last is updated.
+		// Advance last on skew or no refill.
 		b.last = now
 	}
 
