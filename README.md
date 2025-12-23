@@ -170,7 +170,6 @@ user, err := retry.DoValue[User](ctx, exec, "user-service.GetUser", op)
 The facade uses a lazily-initialized default executor. For explicit wiring, build a `retry.Executor` and call the `retry` package directly.
 
 ```go
-```go
 import (
 	"context"
 	"time"
