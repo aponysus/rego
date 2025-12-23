@@ -53,7 +53,7 @@ user, err := retry.DoValue[User](ctx, exec, "user-service.GetUser", op)
 
 ## Explicit wiring (advanced)
 
-If you want to supply policies, classifiers, and budgets explicitly, build a `retry.Executor`:
+If you want to supply policies, classifiers, and budgets explicitly, build a `retry.Executor` and either use it directly or initialize the facade:
 
 ```go
 budgets := budget.NewRegistry()
@@ -89,5 +89,9 @@ exec := retry.NewExecutor(
 	retry.WithBudgetRegistry(budgets),
 )
 
-user, err := retry.DoValue[User](ctx, exec, key, op)
+recourse.Init(exec)
+user, err := recourse.DoValue[User](ctx, key.String(), op)
+
+// Or call retry directly when you want to pass the executor explicitly:
+// user, err := retry.DoValue[User](ctx, exec, key, op)
 ```
