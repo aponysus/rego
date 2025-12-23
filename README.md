@@ -259,7 +259,7 @@ You can fan out to multiple observers with `observe.MultiObserver`.
   - `recourse.ParseKey(string) policy.PolicyKey`
 - Advanced (`github.com/aponysus/recourse/retry`)
   - `retry.NewExecutor(opts...)`
-  - `retry.NewExecutorFromOptions(opts)` (legacy)
+  - `retry.NewExecutorFromOptions(opts)`
   - `retry.DoValue[T](ctx, exec, key, op)`
   - `(*retry.Executor).Do(ctx, key, op)`
 - Policies (`github.com/aponysus/recourse/policy`)
