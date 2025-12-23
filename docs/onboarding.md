@@ -57,16 +57,15 @@ The repository is modular by design:
 | `recourse` | Thin facade: string-key helpers (`Do*`) and key parsing |
 | `retry` | Executor: retries/backoff/timeouts, plus timeline/observer wiring |
 | `policy` | Policy keys + schema + normalization/clamping |
-| `controlplane` | Policy providers (today: static provider; remote provider planned) |
+| `controlplane` | Policy providers (local/static and remote) |
 | `observe` | Timeline types, observer interface, attempt context metadata |
 | `classify` | Outcome classifiers + registry |
 | `budget` | Budgets/backpressure (per-attempt gating + registry) |
-| `hedge` | Hedge triggers/latency tracking (planned) |
+| `hedge` | Hedge triggers/latency tracking |
 
 ## Suggested reading order
 
 1. `README.md` (usage + concepts)
-2. `docs/roadmap.md` (what’s implemented vs planned)
 3. `docs/extending.md` (early draft extension patterns)
 4. Code:
    - `recourse/recourse.go` (facade API)

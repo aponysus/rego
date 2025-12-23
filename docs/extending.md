@@ -87,4 +87,4 @@ Guidelines:
 
 ## Versioning note
 
-This extension surface will stabilize during the `v0.x` series. Until `v1.0.0`, consider all APIs provisional.
+This extension surface is stable for the `v1.x` series.

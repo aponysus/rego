@@ -2,12 +2,14 @@
 
 Policy-driven, observability-first resilience library in Go for distributed systems.
 
-This repository is **early-stage**. Retry, budgets/backpressure, timelines, outcome classifiers, hedging (fixed-delay & latency-aware), and circuit breakers exist today. Remote control plane and comprehensive integrations are in progress.
+[![Go Reference](https://pkg.go.dev/badge/github.com/aponysus/recourse.svg)](https://pkg.go.dev/github.com/aponysus/recourse)
+[![Go Report Card](https://goreportcard.com/badge/github.com/aponysus/recourse)](https://goreportcard.com/report/github.com/aponysus/recourse)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Docs site: https://aponysus.github.io/recourse/
 Changelog: [CHANGELOG.md](CHANGELOG.md)
 
-## What you get today
+## Features
 
 - A retry executor with bounded attempts, backoff/jitter, and per-attempt/overall timeouts
 - Per-attempt budgets/backpressure to prevent retry storms (opt-in via `retry.ExecutorOptions.Budgets`; fail-closed by default)
@@ -151,6 +153,18 @@ The timeline also includes optional `tl.Attributes` such as:
 - `policy_normalized=true` and `policy_clamped_fields=...` when policy normalization changed values
 - `policy_error=...` and `missing_policy_mode=...` when policy resolution involved an error/fallback
 
+## Standard usage (custom defaults)
+
+For most applications, use `NewDefaultExecutor`, which comes with safe defaults (HTTP classification, unlimited budgets, p99 hedging):
+
+```go
+// Create a pre-configured executor
+exec := retry.NewDefaultExecutor()
+
+// Use it
+user, err := retry.DoValue[User](ctx, exec, "user-service.GetUser", op)
+```
+
 ## Advanced usage (explicit executor + structured keys)
 
 The facade uses a lazily-initialized default executor. For explicit wiring, build a `retry.Executor` and call the `retry` package directly.
@@ -268,9 +282,9 @@ You can fan out to multiple observers with `observe.MultiObserver`.
   - `hedge.NewRegistry()`
   - `hedge.NewLatencyTrigger("p99")`
 
-## Current status
+## Status
 
-Implemented:
+All core features are implemented and stable for v1.0:
 
 - **Policy keys + parsing**: `policy.PolicyKey`, `policy.ParseKey`
 - **Policy schema**: `policy.EffectivePolicy`, `EffectivePolicy.Normalize`
@@ -280,16 +294,10 @@ Implemented:
 - **Hedging**: Fixed-delay and latency-aware (P99) hedging triggers
 - **Circuit Breaking**: `ConsecutiveFailureBreaker`, fail-fast on open circuits
 - **Ergonomics**: Functional options for policies/executors
-
-Planned (see `docs/roadmap.md`):
-
-- **Remote control-plane**: Dynamic policy updates, caching
-- **Hardening**: Negative caching for missing keys
-- **Integrations**: Standard library-compatible HTTP and gRPC helpers (opt-in)
+- **Integrations**: Standard library-compatible HTTP and gRPC helpers
 
 ## Project docs
 
-- Roadmap: `docs/roadmap.md`
 - Onboarding: `docs/onboarding.md`
 - Extending: `docs/extending.md`
 
