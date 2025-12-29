@@ -35,6 +35,7 @@ markdown_extensions:
 
 nav:
   - Overview: index.md
+  - Why recourse: blog/why-recourse.md
   - Comparison: comparison.md
   - Getting started: getting-started.md
   - Concepts:
