@@ -108,7 +108,7 @@ For streaming logs/metrics/tracing, implement `observe.Observer`. See the observ
 ## Versioning
 
 - Current release tag: v0.1.0
-- Go version: see `go.mod` (currently 1.24)
+- Go version: see `go.mod` (currently 1.23)
 
 ## Contributing
 

@@ -1,6 +1,6 @@
 module github.com/aponysus/recourse/integrations/grpc
 
-go 1.25.5
+go 1.24.0
 
 replace github.com/aponysus/recourse => ../../
 
