@@ -1,5 +1,5 @@
 site_name: recourse
-site_description: Policy-driven, observable resilience for Go services: retries, hedging, circuit breaking, and budgets.
+site_description: "Policy-driven, observable resilience for Go services: retries, hedging, circuit breaking, and budgets."
 site_url: https://aponysus.github.io/recourse/
 
 repo_url: https://github.com/aponysus/recourse
@@ -54,6 +54,7 @@ nav:
       - Integrations: concepts/integrations.md
       - Architecture decisions: concepts/architecture-decisions.md
   - Reference:
+      - API compatibility policy: reference/compatibility.md
       - Policy schema reference: reference/policy-schema.md
       - Reason codes & timeline fields: reference/reason-codes.md
   - Extending: extending.md
