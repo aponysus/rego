@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1766437747215,
+  "lastUpdate": 1767108772757,
   "repoUrl": "https://github.com/aponysus/recourse",
   "entries": {
     "Go Benchmarks": [
@@ -262,6 +262,268 @@ window.BENCHMARK_DATA = {
             "value": 0,
             "unit": "allocs/op",
             "extra": "14945942 times\n2 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "aponysus",
+            "username": "aponysus",
+            "email": "me@joshuasorrell.com"
+          },
+          "committer": {
+            "name": "aponysus",
+            "username": "aponysus",
+            "email": "me@joshuasorrell.com"
+          },
+          "id": "805230075ca545c0b857b3c4d777064bfd9bde1e",
+          "message": "Add compatibility policy.",
+          "timestamp": "2025-12-30T15:31:09Z",
+          "url": "https://github.com/aponysus/recourse/commit/805230075ca545c0b857b3c4d777064bfd9bde1e"
+        },
+        "date": 1767108772470,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkDoValue_SingleAttempt_Success",
+            "value": 548,
+            "unit": "ns/op\t     192 B/op\t       5 allocs/op",
+            "extra": "2174053 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_SingleAttempt_Success - ns/op",
+            "value": 548,
+            "unit": "ns/op",
+            "extra": "2174053 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_SingleAttempt_Success - B/op",
+            "value": 192,
+            "unit": "B/op",
+            "extra": "2174053 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_SingleAttempt_Success - allocs/op",
+            "value": 5,
+            "unit": "allocs/op",
+            "extra": "2174053 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_ThreeAttempts_AllFail",
+            "value": 1084,
+            "unit": "ns/op\t     480 B/op\t      11 allocs/op",
+            "extra": "942069 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_ThreeAttempts_AllFail - ns/op",
+            "value": 1084,
+            "unit": "ns/op",
+            "extra": "942069 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_ThreeAttempts_AllFail - B/op",
+            "value": 480,
+            "unit": "B/op",
+            "extra": "942069 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_ThreeAttempts_AllFail - allocs/op",
+            "value": 11,
+            "unit": "allocs/op",
+            "extra": "942069 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithTimelineCapture",
+            "value": 4295,
+            "unit": "ns/op\t    2048 B/op\t      26 allocs/op",
+            "extra": "278990 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithTimelineCapture - ns/op",
+            "value": 4295,
+            "unit": "ns/op",
+            "extra": "278990 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithTimelineCapture - B/op",
+            "value": 2048,
+            "unit": "B/op",
+            "extra": "278990 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithTimelineCapture - allocs/op",
+            "value": 26,
+            "unit": "allocs/op",
+            "extra": "278990 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithObserver",
+            "value": 3843,
+            "unit": "ns/op\t    1992 B/op\t      24 allocs/op",
+            "extra": "270222 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithObserver - ns/op",
+            "value": 3843,
+            "unit": "ns/op",
+            "extra": "270222 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithObserver - B/op",
+            "value": 1992,
+            "unit": "B/op",
+            "extra": "270222 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_WithObserver - allocs/op",
+            "value": 24,
+            "unit": "allocs/op",
+            "extra": "270222 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_FastPath_NoTimeline",
+            "value": 550.4,
+            "unit": "ns/op\t     192 B/op\t       5 allocs/op",
+            "extra": "2177382 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_FastPath_NoTimeline - ns/op",
+            "value": 550.4,
+            "unit": "ns/op",
+            "extra": "2177382 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_FastPath_NoTimeline - B/op",
+            "value": 192,
+            "unit": "B/op",
+            "extra": "2177382 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkDoValue_FastPath_NoTimeline - allocs/op",
+            "value": 5,
+            "unit": "allocs/op",
+            "extra": "2177382 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Observe",
+            "value": 10.37,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "100000000 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Observe - ns/op",
+            "value": 10.37,
+            "unit": "ns/op",
+            "extra": "100000000 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Observe - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "100000000 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Observe - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "100000000 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Snapshot",
+            "value": 3562,
+            "unit": "ns/op\t    8248 B/op\t       3 allocs/op",
+            "extra": "302920 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Snapshot - ns/op",
+            "value": 3562,
+            "unit": "ns/op",
+            "extra": "302920 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Snapshot - B/op",
+            "value": 8248,
+            "unit": "B/op",
+            "extra": "302920 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_Snapshot - allocs/op",
+            "value": 3,
+            "unit": "allocs/op",
+            "extra": "302920 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_ConcurrentObserve",
+            "value": 19.47,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "62749537 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_ConcurrentObserve - ns/op",
+            "value": 19.47,
+            "unit": "ns/op",
+            "extra": "62749537 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_ConcurrentObserve - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "62749537 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkRingBufferTracker_ConcurrentObserve - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "62749537 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_AllowAttempt",
+            "value": 66.74,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "18000994 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_AllowAttempt - ns/op",
+            "value": 66.74,
+            "unit": "ns/op",
+            "extra": "18000994 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_AllowAttempt - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "18000994 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_AllowAttempt - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "18000994 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_Concurrent",
+            "value": 80.8,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "15118930 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_Concurrent - ns/op",
+            "value": 80.8,
+            "unit": "ns/op",
+            "extra": "15118930 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_Concurrent - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "15118930 times\n2 procs"
+          },
+          {
+            "name": "BenchmarkTokenBucketBudget_Concurrent - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "15118930 times\n2 procs"
           }
         ]
       }
