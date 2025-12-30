@@ -68,10 +68,6 @@ func TestTimelineCapture_DoesNotLeakToNestedCalls(t *testing.T) {
 	if tl.Key != parentKey {
 		t.Errorf("expected parent key, got %v", tl.Key)
 	}
-
-	// The parent timeline should NOT have attempts from the child
-	// (Though currently we don't merge them anyway, the concern is valid for race conditions or pollution)
-	// The main check was `if _, ok := observe.TimelineCaptureFromContext(ctx); ok` inside the op.
 }
 
 func TestTimelineCapture_ExplicitNestedCapture(t *testing.T) {

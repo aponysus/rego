@@ -27,10 +27,6 @@ func TestNew_AppliesOptions(t *testing.T) {
 }
 
 func TestNew_NormalizationFallback(t *testing.T) {
-	// Provide invalid option that causes normalization failure (if possible)
-	// Normalization fixes most things, but returns error for invalid Jitter.
-	// We need to bypass the type safety of JitterKind to test this,
-	// or use an option that sets it to something invalid.
 
 	invalidJitter := func(p *EffectivePolicy) {
 		p.Retry.Jitter = JitterKind("invalid-jitter")

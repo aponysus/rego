@@ -43,7 +43,6 @@ func TestExecutor_DynamicHedging_P50(t *testing.T) {
 	// Use real time with generous margins.
 
 	// 3. Prime the tracker with "fast" calls (e.g., 5ms)
-	// We need to execute calls that finish quickly.
 	for i := 0; i < 20; i++ {
 		_, err := DoValue[int](context.Background(), exec, key, func(ctx context.Context) (int, error) {
 			time.Sleep(5 * time.Millisecond)
@@ -65,22 +64,6 @@ func TestExecutor_DynamicHedging_P50(t *testing.T) {
 	var hedgeCalls int32
 
 	val, err := DoValue[int](context.Background(), exec, key, func(ctx context.Context) (int, error) {
-		// Identify attempt
-		// IsHedge only available via context?
-		// We can use closure state?
-		// AttemptInfo is injected.
-		/*
-			info := observe.AttemptFromContext(ctx) // helper?
-			// But helpers are internal?
-			// We use side effects?
-		*/
-
-		// Simple approach: atomic counter with sleep.
-		// Since we don't know for sure which is primary vs hedge without context,
-		// we rely on timing.
-
-		// If prompt return -> it's the hedge.
-		// If long delay -> it's the primary.
 
 		info, ok := observe.AttemptFromContext(ctx)
 		if !ok {

@@ -2,7 +2,7 @@
 
 > recourse (n.): a source of help or strength.
 
-Policy-driven, observability-first resilience library for Go services.
+Policy-driven, observable resilience for Go services: retries, hedging, circuit breaking, and budgets.
 
 New here? Start with [Design overview](design-overview.md), then move to [Getting started](getting-started.md).
 

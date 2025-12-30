@@ -167,10 +167,7 @@ func TestExecutor_Observer_BudgetDecisions(t *testing.T) {
 	// Create a budget implementation that allows
 	budgets := budget.NewRegistry()
 	budgets.MustRegister("allow", budget.UnlimitedBudget{})
-	budgets.MustRegister("deny", denySecondAttemptBudget{}) // Uses existing denySecondAttemptBudget from budgets_test.go if accessible (same package)
-	// Actually denySecondAttemptBudget is in budgets_test.go but unexported.
-	// We can redefine or reuse if in same package. Ideally verify reuse.
-	// Since tests in same package 'retry' share scope, it should work.
+	budgets.MustRegister("deny", denySecondAttemptBudget{})
 
 	exec := NewExecutorFromOptions(ExecutorOptions{
 		Provider: &controlplane.StaticProvider{

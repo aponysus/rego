@@ -39,14 +39,7 @@ func TestNewExecutor_StaticPolicies(t *testing.T) {
 		WithMissingPolicyMode(FailureDeny),
 	)
 
-	// Try to execute with this key - should succeed because policy is known
-	// We need a dummy op
 	op := func(ctx context.Context) (int, error) { return 1, nil }
-
-	// We also need "custom" classifier or it will fail if we check?
-	// The policy will be resolved. Use DoValue.
-	// We didn't register "custom" classifier, so resolveClassifier might fail depending on mode?
-	// MissingClassifierMode default is Fallback. So it should work and use default classifier (AlwaysRetry).
 
 	val, err := DoValue(context.Background(), exec, policy.ParseKey(keyStr), op)
 	if err != nil {

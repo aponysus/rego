@@ -1,5 +1,5 @@
 site_name: recourse
-site_description: Policy-driven, observability-first resilience library for Go services.
+site_description: Policy-driven, observable resilience for Go services: retries, hedging, circuit breaking, and budgets.
 site_url: https://aponysus.github.io/recourse/
 
 repo_url: https://github.com/aponysus/recourse
