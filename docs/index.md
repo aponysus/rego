@@ -123,11 +123,13 @@ Retries are only “safe” if they are observable.
 - [Adoption guide](adoption-guide.md) – staged rollout plan.
 - [Incident debugging](incident-debugging.md) – timeline-based runbook.
 - [API compatibility policy](reference/compatibility.md) – v1 stability contract.
+- [Defaults and safety model](reference/defaults-safety.md) – generated defaults and failure modes.
 - [Policy schema reference](reference/policy-schema.md) – generated field reference.
 - [Reason codes & timeline fields](reference/reason-codes.md) – generated reference.
 - [Changelog](https://github.com/aponysus/recourse/blob/main/CHANGELOG.md) – release history.
 - Concepts:
   - [Policy keys](concepts/policy-keys.md)
+  - [Key patterns and taxonomy](concepts/key-patterns.md)
   - [Policies & providers](concepts/policies.md)
   - [Classifiers](concepts/classifiers.md)
   - [Observability](concepts/observability.md)

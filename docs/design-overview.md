@@ -50,7 +50,7 @@ In more detail:
 
 ## How to start
 
-1. Pick a key convention and enforce low-cardinality rules. See [Policy keys](concepts/policy-keys.md) and [Gotchas and safety checklist](gotchas.md).
+1. Pick a key convention and enforce low-cardinality rules. See [Policy keys](concepts/policy-keys.md), [Key patterns and taxonomy](concepts/key-patterns.md), and [Gotchas and safety checklist](gotchas.md).
 2. Integrate via the facade in one service. See [Getting started](getting-started.md) and [Adoption guide](adoption-guide.md).
 3. Capture timelines for critical calls to validate behavior. See [Observability](concepts/observability.md) and [Incident debugging](incident-debugging.md).
 
@@ -59,7 +59,9 @@ In more detail:
 - [Gotchas and safety checklist](gotchas.md)
 - [Adoption guide](adoption-guide.md)
 - [Incident debugging](incident-debugging.md)
+- [Defaults and safety model](reference/defaults-safety.md)
 - [Policies and providers](concepts/policies.md)
+- [Key patterns and taxonomy](concepts/key-patterns.md)
 - [Classifiers](concepts/classifiers.md)
 - [Budgets and backpressure](concepts/budgets.md)
 - [Hedging](concepts/hedging.md)

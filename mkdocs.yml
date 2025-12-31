@@ -44,6 +44,7 @@ nav:
   - Incident debugging: incident-debugging.md
   - Concepts:
       - Policy keys: concepts/policy-keys.md
+      - Key patterns and taxonomy: concepts/key-patterns.md
       - Policies & providers: concepts/policies.md
       - Classifiers: concepts/classifiers.md
       - Observability: concepts/observability.md
@@ -55,6 +56,7 @@ nav:
       - Architecture decisions: concepts/architecture-decisions.md
   - Reference:
       - API compatibility policy: reference/compatibility.md
+      - Defaults and safety model: reference/defaults-safety.md
       - Policy schema reference: reference/policy-schema.md
       - Reason codes & timeline fields: reference/reason-codes.md
   - Extending: extending.md

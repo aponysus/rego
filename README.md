@@ -98,10 +98,12 @@ For streaming logs/metrics/tracing, implement `observe.Observer`. See the observ
 - Design overview: https://aponysus.github.io/recourse/design-overview/
 - Getting started: https://aponysus.github.io/recourse/getting-started/
 - Gotchas and safety checklist: https://aponysus.github.io/recourse/gotchas/
+- Key patterns and taxonomy: https://aponysus.github.io/recourse/concepts/key-patterns/
 - Adoption guide: https://aponysus.github.io/recourse/adoption-guide/
 - Incident debugging: https://aponysus.github.io/recourse/incident-debugging/
 - Comparison: https://aponysus.github.io/recourse/comparison/
 - Why recourse: https://aponysus.github.io/recourse/blog/why-recourse/
+- Defaults and safety model: https://aponysus.github.io/recourse/reference/defaults-safety/
 - Policy schema reference: https://aponysus.github.io/recourse/reference/policy-schema/
 - Reason codes and timelines: https://aponysus.github.io/recourse/reference/reason-codes/
 

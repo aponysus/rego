@@ -16,7 +16,7 @@ recourse exists to make that promise repeatable in Go services. Call sites suppl
 
 If you have seen my Python library redress, think of recourse as the Go counterpart that leans harder into "control plane" ideas: central envelopes keyed by operation, plus backpressure and tail-latency tooling.
 
-## The core move: the call site picks a key, not a mechanism
+## The core move: the call site picks a key rather than mechanism
 
 Most retry libraries start from "how many attempts" and "which backoff." recourse starts from a different primitive:
 
@@ -75,7 +75,7 @@ If policy resolution fails, behavior is explicit. By default, recourse fails clo
 
 This is a guardrail. It prevents accidental busy loops and storms even when configuration is imperfect.
 
-## Design principle: semantics come from classifiers, not heuristics
+## Design principle: semantics come from classifiers rather than heuristics
 
 A timeout, a 429, and a 404 are not the same thing. Treating them the same is how you get self-inflicted incidents.
 
@@ -206,6 +206,6 @@ The call sites stay boring. The policy envelope becomes the place where reliabil
 
 ## Closing thought
 
-Retries are not a feature. They are an operational commitment.
+Retries are not a feature. They are, rather, an operational commitment.
 
 recourse tries to make that commitment explicit: policy-keyed control, bounded envelopes, protocol-aware semantics, backpressure, tail-latency tooling, and observability that tells the truth about what happened.
