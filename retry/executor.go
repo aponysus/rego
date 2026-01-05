@@ -583,10 +583,6 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 				tl.Attributes["circuit_state"] = decision.State.String()
 				exec.observer.OnStart(ctx, key, pol)
 				exec.observer.OnFailure(ctx, key, tl)
-				// Record failure? IP says: "On OutcomeAbort: Do not report".
-				// Circuit rejection is arguably a failure of availability, but we didn't attempt.
-				// Usually we don't record failure to the breaker if the breaker itself rejected it
-				// (preventing feedback loop).
 				return zero, tl, tl.FinalErr
 			}
 			// If allowed, we proceed.
@@ -668,8 +664,6 @@ func doValueWithTimeline[T any](ctx context.Context, exec *Executor, key policy.
 			tlMu.Unlock()
 			exec.observer.OnFailure(ctx, key, tl)
 			// Context canceled before attempt.
-			// Should we report this to breaker?
-			// Usually Context Canceled is OutcomeAbort, which we don't report.
 			return last, tl, err
 		}
 

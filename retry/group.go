@@ -29,7 +29,7 @@ type groupResult[T any] struct {
 func (e *Executor) doRetryGroup(
 	ctx context.Context,
 	key policy.PolicyKey,
-	// Generic helper for concurrent operations.
+// Generic helper for concurrent operations.
 	op OperationValue[any],
 	pol policy.EffectivePolicy,
 	retryIdx int,
@@ -120,8 +120,6 @@ func (e *Executor) doRetryGroup(
 			if pol.Retry.TimeoutPerAttempt > 0 {
 				attemptCtx, cancelAttempt = context.WithTimeout(groupCtx, pol.Retry.TimeoutPerAttempt)
 			} else {
-				// Ensure we can cancel this specific attempt if needed?
-				// groupCtx handles it.
 				cancelAttempt = func() {}
 			}
 			defer cancelAttempt()
@@ -182,8 +180,6 @@ func (e *Executor) doRetryGroup(
 				panicErr: panicErr,
 			}
 
-			// Send result
-			// Non-blocking send? No, buffered channel.
 			results <- res
 		}()
 	}
@@ -204,7 +200,7 @@ func (e *Executor) doRetryGroup(
 		if pol.Hedge.TriggerName != "" && e.triggers != nil {
 			var ok bool
 			trig, ok = e.triggers.Get(pol.Hedge.TriggerName)
-			_ = ok // If not found, fall back to FixedDelay? Or just rely on loop?
+			_ = ok
 		}
 
 		// Fallback to fixed delay if no trigger found or Logic
@@ -291,9 +287,9 @@ func (e *Executor) doRetryGroup(
 			active := activeAttempts.Load()
 			// Check if all active attempts have finished.
 			// If active=0, it means all launched attempts (primary + any hedges so far) have failed.
-			// While valid hedges *might* spawn later if we waited, failure of the Primary
+			// While valid hedges might spawn later if we waited, failure of the Primary
 			// usually suggests we should proceed to the next Retry step rather than waiting
-			// for speculative hedges, unless we strictly hedge *failures* (which is not this mode).
+			// for speculative hedges, unless we strictly hedge failures (which is not this mode).
 
 			if active == 0 {
 				// All launched attempts failed.

@@ -36,8 +36,6 @@ func (e *Executor) allowAttempt(ctx context.Context, key policy.PolicyKey, ref p
 		if e.observer != nil {
 			event.Allowed = d.Allowed
 			event.Reason = d.Reason
-			// Mode logic? "allow_unsafe" if allowed via missing budget mode?
-			// Simplify: Mode is just failureModeString if missing, else "standard"
 			if event.Mode == "" {
 				event.Mode = "standard"
 			}
@@ -79,8 +77,6 @@ func (e *Executor) allowAttempt(ctx context.Context, key policy.PolicyKey, ref p
 				emit(d, false)
 				decision = d
 				allowed = false
-				// Re-panic? No, recover means we handle it. But caller expects allowAttempt to return safely.
-				// We update named return values.
 			}
 		}()
 	}

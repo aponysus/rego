@@ -81,9 +81,8 @@ func TestLatencyTrigger_ShouldSpawnHedge(t *testing.T) {
 			elapsed:    100 * time.Millisecond,
 			attempts:   1,
 			maxHedges:  1,
-			want:       false, // Threshold is 0, so <= 0 check returns false?
-			// Logic: threshold <= 0 returns false.
-			wantWait: 0,
+			want:       false,
+			wantWait:   0,
 		},
 	}
 

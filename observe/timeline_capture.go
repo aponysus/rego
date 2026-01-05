@@ -22,7 +22,7 @@ func (c *TimelineCapture) Timeline() *Timeline {
 }
 
 // store is used by the retry executor to publish the finished timeline.
-// It is intentionally unexported to discourage direct mutation by end-users.
+// unexported to discourage direct mutation.
 // Use StoreTimelineCapture to set this from other packages.
 func (c *TimelineCapture) store(tl *Timeline) {
 	if c == nil || tl == nil {

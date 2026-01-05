@@ -95,9 +95,6 @@ func quantile(sorted []time.Duration, q float64) time.Duration {
 		return 0
 	}
 	// Use (N-1)*q to interpret index in 0-based array.
-	// For N=100 (indices 0-99):
-	// q=0.5 -> 49.5 -> 49 (Value 50)
-	// q=0.99 -> 98.01 -> 98 (Value 99)
 	idx := int(float64(len(sorted)-1) * q)
 	if idx >= len(sorted) {
 		idx = len(sorted) - 1

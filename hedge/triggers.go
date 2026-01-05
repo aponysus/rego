@@ -14,9 +14,6 @@ type LatencyTrigger struct {
 func (t LatencyTrigger) ShouldSpawnHedge(state HedgeState) (bool, time.Duration) {
 	threshold := time.Duration(0)
 
-	// Since we haven't updated HedgeState yet, I will write the logic assuming state has Snapshot.
-	// We will update types.go in the next step.
-
 	switch strings.ToLower(t.Percentile) {
 	case "p50":
 		threshold = state.Snapshot.P50
@@ -37,8 +34,6 @@ func (t LatencyTrigger) ShouldSpawnHedge(state HedgeState) (bool, time.Duration)
 	}
 
 	if state.Elapsed > threshold {
-		// Spawn!
-		// But only if we haven't already reached the limit.
 		if state.AttemptsLaunched >= 1+state.MaxHedges {
 			return false, 0
 		}
