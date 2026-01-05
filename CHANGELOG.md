@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - TBD
 
+## [1.0.0] - 2026-01-05
+
+### Added
+- API compatibility policy and telemetry contract documentation.
+- Generated reference docs for policy schema, defaults/safety model, and reason codes/timeline fields.
+- Docs generator and Makefile targets for reference docs.
+- CI guard to keep generated references in sync.
+- Expanded docs: design overview, gotchas, adoption guide, incident debugging, and key patterns/taxonomy.
+
+### Changed
+- Go version baseline set to 1.23 across modules.
+- Docs navigation and landing copy aligned with the v1 framing.
+
 ## [0.1.0] - 2025-12-22
 
 ### Added
