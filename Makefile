@@ -14,7 +14,7 @@ docs-build:
 # Verify docs Claim-ID markers against the claims ledger
 docs-claims:
 	@mkdir -p $(GOCACHE)
-	GOCACHE=$(GOCACHE) go run scripts/claims_check.go
+	GOCACHE=$(GOCACHE) go run ./scripts/claims_check
 
 # Generate reference docs and build the site
 docs: docs-reference docs-build
