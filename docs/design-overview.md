@@ -3,6 +3,8 @@
 ## What it is
 
 recourse is a policy-driven resilience library for Go services. Call sites supply a stable key, policies define the retry envelope, and the executor records structured timelines and observer events so behavior is explainable in production.
+<!-- Claim-ID: CLM-013 -->
+<!-- Claim-ID: CLM-014 -->
 
 ## Who it is for
 
@@ -30,16 +32,25 @@ In more detail:
 
 1. Call sites provide a low-cardinality policy key such as "payments.Charge".
 2. A policy provider resolves the effective policy for that key.
+   <!-- Claim-ID: CLM-025 -->
 3. The executor runs attempts using classification, backoff, budgets, hedging, and circuit breaking as configured.
 4. Observability artifacts are emitted (timeline records and observer callbacks).
+   <!-- Claim-ID: CLM-013 -->
+   <!-- Claim-ID: CLM-014 -->
 
 ## The operational contract
 
 - Attempts, backoff, and timeouts are bounded by policy.
+  <!-- Claim-ID: CLM-019 -->
 - Classifiers decide whether an outcome should retry, stop, or abort.
-- Budgets provide backpressure so retries do not amplify outages.
+  <!-- Claim-ID: CLM-023 -->
+- Budgets gate attempts as backpressure.
+  <!-- Claim-ID: CLM-010 -->
 - Behavior is explainable through structured timelines and observer events.
+  <!-- Claim-ID: CLM-013 -->
+  <!-- Claim-ID: CLM-014 -->
 - Context cancellation is respected across attempts, sleeps, and hedges.
+  <!-- Claim-ID: CLM-015 -->
 
 ## Tradeoffs and organizational cost
 

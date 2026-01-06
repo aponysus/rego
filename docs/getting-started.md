@@ -35,7 +35,7 @@ for _, a := range tl.Attempts {
 
 ## Standard usage (custom defaults)
 
-For most applications, you want standard defaults (HTTP classification, unlimited budgets, p99 hedging) but with your own instance.
+For most applications, you want standard defaults (auto classification, an unlimited budget, and latency-based hedging triggers) but with your own instance.
 
 ```go
 // Create a pre-configured executor
@@ -47,9 +47,10 @@ user, err := retry.DoValue[User](ctx, exec, "user-service.GetUser", op)
 
 `NewDefaultExecutor` comes with:
 
-- **Classifiers**: `AutoClassifier` (handles HTTP, generic errors, and registered integrations like gRPC)
+- **Classifiers**: `AutoClassifier` (HTTPError-aware; otherwise uses `AlwaysRetryOnError`)
 - **Budgets**: `UnlimitedBudget` registered as `"unlimited"`
-- **Hedging**: `FixedDelay` and `Latency` (`p90`, `p99`) triggers registered
+- **Hedging**: `FixedDelay` and `Latency` (`p90`, `p95`, `p99`) triggers registered
+<!-- Claim-ID: CLM-004 -->
 
 ## Explicit wiring (advanced)
 

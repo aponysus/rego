@@ -20,9 +20,12 @@ Retry logic is deceptively easy to write and notoriously hard to operate.
 Concretely, `recourse` gives you:
 
 - **Deterministic envelopes**: bounded attempts, bounded backoff, and explicit timeouts.
+  <!-- Claim-ID: CLM-019 -->
 - **Domain-aware retry decisions**: pluggable classifiers (instead of “retry on any error”).
 - **Backpressure**: per-attempt budgets to prevent retry storms.
 - **Structured observability**: timelines and hooks that make behavior explainable in production.
+  <!-- Claim-ID: CLM-013 -->
+  <!-- Claim-ID: CLM-014 -->
 
 ## The problem with ad-hoc retries
 
@@ -105,6 +108,8 @@ for _, a := range tl.Attempts {
 Retries are only “safe” if they are observable.
 
 `recourse` captures a structured `observe.Timeline` (attempt timings, outcomes, budget decisions, errors) and can also stream attempt/timeline events to your own logging/metrics/tracing via `observe.Observer`.
+<!-- Claim-ID: CLM-013 -->
+<!-- Claim-ID: CLM-014 -->
 
 ## What’s inside
 

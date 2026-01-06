@@ -8,6 +8,7 @@ This document describes the v1.x compatibility contract for recourse.
 - For v1.x, exported APIs in the stable packages listed below will not change in a breaking way.
 - Additive changes are allowed. Removals or breaking changes require a v2 release.
 - Deprecations will be documented in release notes and code comments.
+<!-- Claim-ID: CLM-020 -->
 
 ## Stable packages (root module)
 
@@ -23,6 +24,7 @@ These packages are part of the v1.x stability contract:
 - `github.com/aponysus/recourse/circuit`
 - `github.com/aponysus/recourse/hedge`
 - `github.com/aponysus/recourse/integrations/http`
+<!-- Claim-ID: CLM-020 -->
 
 ## Separate module: gRPC integration
 
@@ -31,12 +33,14 @@ The gRPC integration is a separate module:
 - `github.com/aponysus/recourse/integrations/grpc`
 
 It follows SemVer in its own module. The intent is to version it in lockstep with the root module, but it is independently tagged.
+<!-- Claim-ID: CLM-020 -->
 
 ## Not part of the API contract
 
 - `internal/` packages
 - `examples/` packages
 - Test-only helpers
+<!-- Claim-ID: CLM-020 -->
 
 ## Telemetry contract
 
@@ -44,6 +48,7 @@ The following are considered stable for v1.x:
 
 - `observe.Timeline`, `observe.AttemptRecord`, and `observe.BudgetDecisionEvent` fields
 - `Outcome.Reason` values and budget/circuit reason codes
+<!-- Claim-ID: CLM-020 -->
 
 See the generated references:
 
@@ -53,3 +58,4 @@ See the generated references:
 ## Go version support
 
 The supported Go version is defined by `go.mod` (currently 1.23).
+<!-- Claim-ID: CLM-021 -->

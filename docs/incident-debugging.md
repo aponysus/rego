@@ -27,8 +27,10 @@ func main() {
     _ = tl
 }
 ```
+<!-- Claim-ID: CLM-013 -->
 
 If you need streaming events for logs or metrics, implement `observe.Observer` and attach it in the executor options. See [Observability](concepts/observability.md).
+<!-- Claim-ID: CLM-014 -->
 
 ## Triage checklist
 

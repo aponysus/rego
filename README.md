@@ -27,9 +27,13 @@ Changelog: [CHANGELOG.md](CHANGELOG.md)
 ## What makes it different
 
 - **Policy keys**: call sites provide a stable key; policies define the retry envelope.
+  <!-- Claim-ID: CLM-019 -->
 - **Classifiers**: outcomes are protocol-aware instead of "retry on any error".
 - **Backpressure**: budgets gate attempts to prevent load amplification.
+  <!-- Claim-ID: CLM-010 -->
 - **Explainability**: timelines and observer hooks make behavior debuggable.
+  <!-- Claim-ID: CLM-013 -->
+  <!-- Claim-ID: CLM-014 -->
 
 ## Install
 
@@ -90,8 +94,10 @@ func main() {
 	}
 }
 ```
+<!-- Claim-ID: CLM-013 -->
 
 For streaming logs/metrics/tracing, implement `observe.Observer`. See the observability docs for details.
+<!-- Claim-ID: CLM-014 -->
 
 ## Docs
 
@@ -114,11 +120,14 @@ For streaming logs/metrics/tracing, implement `observe.Observer`. See the observ
 - `integrations/grpc` is a separate module with its own tags (intended to track root releases).
 - `internal` and `examples` are not part of the API contract.
 - Telemetry fields and reason codes are treated as stable and documented in the generated references.
+<!-- Claim-ID: CLM-020 -->
 
 ## Versioning
 
-- Current release tag: v0.1.0
+- Current release tag: v1.0.0
+<!-- Claim-ID: CLM-022 -->
 - Go version: see `go.mod` (currently 1.23)
+<!-- Claim-ID: CLM-021 -->
 
 ## Contributing
 

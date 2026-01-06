@@ -26,6 +26,7 @@ Align timeouts so you do not accidentally exceed upstream deadlines:
 - Ensure parent context deadlines are larger than the retry envelope you intend to allow.
 
 recourse respects `context.Context` cancellation for attempts, backoff sleeps, and hedges.
+<!-- Claim-ID: CLM-015 -->
 
 ## Key cardinality
 

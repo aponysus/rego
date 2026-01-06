@@ -18,5 +18,6 @@ Why low-cardinality matters:
 
 `policy.ParseKey("svc.Method")` yields `policy.PolicyKey{Namespace:"svc", Name:"Method"}`.
 If no dot is present, the entire string becomes `Name` and `Namespace` is empty.
+<!-- Claim-ID: CLM-001 -->
 
 See [Key patterns and taxonomy](key-patterns.md) for naming guidance.

@@ -21,3 +21,4 @@ jobs:
       - run: go vet ./...
       - run: make docs-reference
       - run: git diff --exit-code docs/reference
+      - run: make docs-claims

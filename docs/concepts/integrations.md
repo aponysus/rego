@@ -19,10 +19,12 @@ This page describes the contracts and constraints for the recourse integrations.
 - Converts non-2xx responses and transport errors into `StatusError`, which implements `classify.HTTPError`.
 - Drains and closes failed response bodies (up to 4KB) to support connection reuse.
 - Returns the response, a captured `observe.Timeline`, and an error.
+<!-- Claim-ID: CLM-008 -->
 
 ### Constraints and safety
 
 - **Request bodies must be replayable**: if `req.Body` is set and `req.GetBody` is nil, `DoHTTP` returns an error.
+<!-- Claim-ID: CLM-009 -->
 - **Non-idempotent methods should not be retried**: use appropriate policies or classifiers.
 - **Streaming responses are not retried**: failed attempts are drained and closed.
 - **Timeouts are still your responsibility**: use policy timeouts and context deadlines.
@@ -67,6 +69,7 @@ func main() {
   - `"/Service/Method"` -> `{Namespace: "Service", Name: "Method"}`
 - Provides `Classifier`, which maps gRPC status codes to retry outcomes.
 - Provides `WithClassifier`, which sets the gRPC classifier as the executor default.
+<!-- Claim-ID: CLM-007 -->
 
 ### Constraints and safety
 

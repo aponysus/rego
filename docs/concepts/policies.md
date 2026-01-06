@@ -11,6 +11,7 @@ Policies are per-key and have (today) three main sub-policies:
 - `Circuit`: Short-circuiting logic for failing dependencies. See [Circuit Breaking](circuit-breaking.md).
 
 All policies are normalized/clamped via `EffectivePolicy.Normalize()` to prevent unsafe configs (busy loops, tiny timeouts, unbounded concurrency).
+<!-- Claim-ID: CLM-003 -->
 
 ## Providers
 
@@ -26,6 +27,7 @@ Today, `recourse` ships with `controlplane.StaticProvider` for in-process policy
 
 If policy resolution fails, the executor consults `ExecutorOptions.MissingPolicyMode`:
 
-- `retry.FailureDeny` (default): fail fast with `retry.ErrNoPolicy`
+- `retry.FailureDeny` (default): fail fast with `retry.NoPolicyError` (use `errors.Is(err, retry.ErrNoPolicy)`)
 - `retry.FailureAllow`: run a single attempt
 - `retry.FailureFallback`: use a safe default policy
+<!-- Claim-ID: CLM-002 -->

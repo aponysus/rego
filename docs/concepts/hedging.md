@@ -9,6 +9,7 @@ In distributed systems, a single request might occasionally experience high late
 `recourse` supports two types of hedging:
 1.  **Fixed-Delay**: Spawn a hedge after a static duration (e.g., 10ms).
 2.  **Latency-Aware**: Spawn a hedge dynamically based on recent latency statistics (e.g., if slower than P99).
+<!-- Claim-ID: CLM-017 -->
 
 ## Configuration
 
@@ -49,7 +50,8 @@ triggers.Register("p99", &hedge.LatencyTrigger{Percentile: "p99"})
 exec := retry.NewExecutor(retry.WithHedgeTriggerRegistry(triggers))
 ```
 
-The executor automatically tracks latency P-values (P50, P90, P99) for each policy key using a ring buffer.
+The executor automatically tracks latency P-values (P50, P90, P95, P99) for each policy key using a ring buffer.
+<!-- Claim-ID: CLM-017 -->
 
 ## Behavior
 
@@ -57,3 +59,4 @@ The executor automatically tracks latency P-values (P50, P90, P99) for each poli
 *   **Fail-Fast**: If `CancelOnFirstTerminal` is set to `true`, a non-retryable error from *any* attempt will cancel the entire group. Otherwise, the executor waits for other attempts.
 *   **Budgets**: Hedged attempts use `Hedge.Budget` if configured; otherwise they are unbudgeted even if `Retry.Budget` is set.
 *   **Observability**: `OnHedgeSpawn` is called on the observer when a hedge is launched. `AttemptRecord` includes `IsHedge` and `HedgeIndex`.
+<!-- Claim-ID: CLM-017 -->

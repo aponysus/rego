@@ -41,6 +41,7 @@ To prevent hammering the control plane, `RemoteProvider` implements robust cachi
 
 1.  **TTL Cache**: Successfully fetched policies are cached for `CacheTTL` (default 1 min).
 2.  **Negative Caching**: If a policy is not found (404), this result is cached for `NegativeCacheTTL` (default 10s) to prevent hot-spotting on missing keys.
+<!-- Claim-ID: CLM-018 -->
 
 ## Resolution Logic
 

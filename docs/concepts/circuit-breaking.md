@@ -35,3 +35,4 @@ pol.Circuit = policy.CircuitPolicy{
 *   **Probing**: In Half-Open state, only one probe is allowed at a time.
 *   **Hedging**: Hedging is **disabled** when the breaker is in Half-Open state to avoid overloading the recovering dependency.
 *   **Observability**: `CircuitOpenError` includes the state and reason (`"circuit_open"`, `"circuit_half_open_probe_limit"`).
+<!-- Claim-ID: CLM-016 -->
