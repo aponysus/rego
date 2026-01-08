@@ -1,6 +1,7 @@
 package http_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -68,64 +69,147 @@ func TestDoHTTP_RetryOn503(t *testing.T) {
 	}
 }
 
-func TestDoHTTP_RespectsRetryAfter(t *testing.T) {
+func TestDoHTTP_RecordsRetryAfterOverride(t *testing.T) {
 	attempts := 0
-	start := time.Now()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
-		if attempts == 1 {
-			w.Header().Set("Retry-After", "1") // 1 second
-			w.WriteHeader(http.StatusTooManyRequests)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Retry-After", "1") // 1 second
+		w.WriteHeader(http.StatusTooManyRequests)
 	}))
 	defer server.Close()
 
 	exec := retry.NewDefaultExecutor(
-		retry.WithPolicy("test", policy.MaxBackoff(5*time.Second)),
+		retry.WithPolicy("test", policy.MaxAttempts(1)),
 	)
 	client := server.Client()
 
 	req, _ := http.NewRequest("GET", server.URL, nil)
-	_, _, err := integration.DoHTTP(context.Background(), exec, policy.PolicyKey{Name: "test"}, client, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, tl, err := integration.DoHTTP(context.Background(), exec, policy.PolicyKey{Name: "test"}, client, req)
+	if err == nil {
+		t.Fatalf("expected error")
 	}
-
-	elapsed := time.Since(start)
-	if elapsed < 1*time.Second {
-		t.Errorf("expected >1s latency due to Retry-After, got %v", elapsed)
+	if attempts != 1 {
+		t.Fatalf("attempts=%d, want 1", attempts)
+	}
+	if len(tl.Attempts) != 1 {
+		t.Fatalf("attempts=%d, want 1", len(tl.Attempts))
+	}
+	out := tl.Attempts[0].Outcome
+	if out.BackoffOverride != time.Second {
+		t.Fatalf("backoffOverride=%v, want 1s", out.BackoffOverride)
+	}
+	if got := out.Attributes["retry_after"]; got != "1s" {
+		t.Fatalf("retry_after=%q, want %q", got, "1s")
 	}
 }
 
-func TestDoHTTP_DrainsAndClosesExample(t *testing.T) {
-	// Ensure response bodies are drained/closed to avoid leaks.
+func TestDoHTTP_ReplaysBodyWithGetBody(t *testing.T) {
+	var bodies [][]byte
+	var calls int
 
-	attempts := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		attempts++
-		if attempts == 1 {
-			w.WriteHeader(http.StatusInternalServerError)
-			// Write some body to drain
-			fmt.Fprintln(w, "some error body")
-			return
+	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		data, _ := io.ReadAll(req.Body)
+		bodies = append(bodies, data)
+		calls++
+		if calls == 1 {
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Body:       io.NopCloser(strings.NewReader("retry")),
+				Header:     make(http.Header),
+				Request:    req,
+			}, nil
 		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})
 
-	exec := retry.NewDefaultExecutor()
-	client := server.Client()
+	client := &http.Client{Transport: rt}
+	exec := retry.NewDefaultExecutor(
+		retry.WithPolicy("test",
+			policy.MaxAttempts(2),
+			policy.InitialBackoff(0),
+			policy.MaxBackoff(0),
+			policy.Jitter(policy.JitterNone),
+		),
+	)
 
-	req, _ := http.NewRequest("GET", server.URL, nil)
-	_, tl, err := integration.DoHTTP(context.Background(), exec, policy.PolicyKey{Name: "test"}, client, req)
+	body := []byte("payload")
+	req, _ := http.NewRequest("PUT", "http://example.test", io.NopCloser(bytes.NewReader(body)))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+
+	resp, tl, err := integration.DoHTTP(context.Background(), exec, policy.PolicyKey{Name: "test"}, client, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status=%d, want 200", resp.StatusCode)
+	}
 	if len(tl.Attempts) != 2 {
-		t.Errorf("expected 2 attempts, got %d", len(tl.Attempts))
+		t.Fatalf("attempts=%d, want 2", len(tl.Attempts))
+	}
+	if calls != 2 {
+		t.Fatalf("calls=%d, want 2", calls)
+	}
+	if len(bodies) != 2 || !bytes.Equal(bodies[0], body) || !bytes.Equal(bodies[1], body) {
+		t.Fatalf("bodies=%q, want two payload copies", bodies)
+	}
+}
+
+func TestDoHTTP_ContextCanceled(t *testing.T) {
+	called := false
+	rt := roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		called = true
+		return nil, errors.New("unexpected request")
+	})
+
+	exec := retry.NewDefaultExecutor()
+	client := &http.Client{Transport: rt}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	req, _ := http.NewRequest("GET", "http://example.test", nil)
+	_, _, err := integration.DoHTTP(ctx, exec, policy.PolicyKey{Name: "test"}, client, req)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err=%v, want context canceled", err)
+	}
+	if called {
+		t.Fatal("unexpected request execution")
+	}
+
+}
+
+func TestDoHTTP_DrainsAndClosesBody(t *testing.T) {
+	body := &trackingBody{data: bytes.Repeat([]byte("x"), 5000)}
+
+	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       body,
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})
+
+	exec := retry.NewDefaultExecutor(retry.WithPolicy("test", policy.MaxAttempts(1)))
+	client := &http.Client{Transport: rt}
+
+	req, _ := http.NewRequest("GET", "http://example.test", nil)
+	_, _, err := integration.DoHTTP(context.Background(), exec, policy.PolicyKey{Name: "test"}, client, req)
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !body.closed {
+		t.Fatalf("expected body to be closed")
+	}
+	if body.read != 4096 {
+		t.Fatalf("read=%d, want 4096", body.read)
 	}
 }
 
@@ -205,4 +289,30 @@ func TestStatusError_ErrorPrefersWrappedErr(t *testing.T) {
 	if err.Error() != "http status 500" {
 		t.Fatalf("got %q, want %q", err.Error(), "http status 500")
 	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (rt roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return rt(req)
+}
+
+type trackingBody struct {
+	data   []byte
+	read   int
+	closed bool
+}
+
+func (b *trackingBody) Read(p []byte) (int, error) {
+	if b.read >= len(b.data) {
+		return 0, io.EOF
+	}
+	n := copy(p, b.data[b.read:])
+	b.read += n
+	return n, nil
+}
+
+func (b *trackingBody) Close() error {
+	b.closed = true
+	return nil
 }

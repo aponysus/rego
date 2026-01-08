@@ -3,6 +3,7 @@ package retry
 import (
 	"context"
 	"errors"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -418,4 +419,27 @@ func TestResolvePolicyFast_NormalizationErrorDeny(t *testing.T) {
 	if !errors.As(err, &npe) {
 		t.Fatalf("expected NoPolicyError, got %v", err)
 	}
+}
+
+const spinWaitIterations = 10000
+
+func spinWait(check func() bool) bool {
+	for i := 0; i < spinWaitIterations; i++ {
+		if check() {
+			return true
+		}
+		runtime.Gosched()
+	}
+	return check()
+}
+
+func waitForSignal(ch <-chan struct{}) bool {
+	return spinWait(func() bool {
+		select {
+		case <-ch:
+			return true
+		default:
+			return false
+		}
+	})
 }

@@ -2,16 +2,20 @@ package retry
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/aponysus/recourse/hedge"
 	"github.com/aponysus/recourse/observe"
 	"github.com/aponysus/recourse/policy"
 )
 
 func TestExecutor_Hedge_PrimaryWins(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping time-dependent test in short mode")
+		t.Skip("skipping in short mode")
 	}
 
 	key := policy.ParseKey("test.hedge.primary")
@@ -21,27 +25,37 @@ func TestExecutor_Hedge_PrimaryWins(t *testing.T) {
 			MaxAttempts: 1,
 		},
 		Hedge: policy.HedgePolicy{
-			Enabled:    true,
-			MaxHedges:  1,
-			HedgeDelay: 10 * time.Millisecond,
+			Enabled:     true,
+			MaxHedges:   1,
+			HedgeDelay:  0,
+			TriggerName: "immediate",
 		},
 	}
 	exec := newTestExecutor(t, key, pol)
-	// Use real sleep for this test since doRetryGroup uses real ticker
-	exec.sleep = sleepWithContext
-	exec.clock = time.Now
+	setImmediateTrigger(exec)
 
 	ctx, capture := observe.RecordTimeline(context.Background())
 
+	errHedgeNotStarted := errors.New("hedge did not start")
+	hedgeStarted := make(chan struct{})
+	var hedgeOnce sync.Once
+
 	val, err := DoValue[string](ctx, exec, key, func(ctx context.Context) (string, error) {
-		// Both Primary and Hedge will run this.
-		// Primary starts at 0. Sleep 50ms. Finishes at 50ms.
-		// Hedge starts at 10ms. Sleep 50ms. Finishes at 60ms.
-		// Primary should win.
-		time.Sleep(50 * time.Millisecond)
+		info, _ := observe.AttemptFromContext(ctx)
+		if info.IsHedge {
+			hedgeOnce.Do(func() { close(hedgeStarted) })
+			<-ctx.Done()
+			return "", ctx.Err()
+		}
+		if !waitForSignal(hedgeStarted) {
+			return "", errHedgeNotStarted
+		}
 		return "ok", nil
 	})
 
+	if errors.Is(err, errHedgeNotStarted) {
+		t.Fatal("expected hedge attempt to start")
+	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +73,7 @@ func TestExecutor_Hedge_PrimaryWins(t *testing.T) {
 
 func TestExecutor_Hedge_HedgeWins(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping time-dependent test in short mode")
+		t.Skip("skipping in short mode")
 	}
 
 	key := policy.ParseKey("test.hedge.secondary")
@@ -69,33 +83,43 @@ func TestExecutor_Hedge_HedgeWins(t *testing.T) {
 			MaxAttempts: 1,
 		},
 		Hedge: policy.HedgePolicy{
-			Enabled:    true,
-			MaxHedges:  1,
-			HedgeDelay: 10 * time.Millisecond,
+			Enabled:     true,
+			MaxHedges:   1,
+			HedgeDelay:  0,
+			TriggerName: "immediate",
 		},
 	}
 	exec := newTestExecutor(t, key, pol)
-	exec.sleep = sleepWithContext
-	exec.clock = time.Now
+	setImmediateTrigger(exec)
 
 	ctx, capture := observe.RecordTimeline(context.Background())
 	primaryDone := make(chan struct{})
+	primaryStarted := make(chan struct{})
+	hedgeStarted := make(chan struct{})
+	var hedgeOnce sync.Once
+	errHedgeNotStarted := errors.New("hedge did not start")
 
 	val, err := DoValue[string](ctx, exec, key, func(ctx context.Context) (string, error) {
 		info, _ := observe.AttemptFromContext(ctx)
 		if !info.IsHedge {
-			// Primary: Sleep and wait for cancel
-			select {
-			case <-time.After(200 * time.Millisecond):
-			case <-ctx.Done():
+			close(primaryStarted)
+			defer close(primaryDone)
+			if !waitForSignal(hedgeStarted) {
+				return "", errHedgeNotStarted
 			}
-			close(primaryDone)
+			<-ctx.Done()
 			return "primary", ctx.Err()
 		}
-		// Hedge: Return fast
+		hedgeOnce.Do(func() { close(hedgeStarted) })
+		if !waitForSignal(primaryStarted) {
+			return "", errHedgeNotStarted
+		}
 		return "hedge", nil
 	})
 
+	if errors.Is(err, errHedgeNotStarted) {
+		t.Fatal("expected hedge attempt to start")
+	}
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -104,9 +128,9 @@ func TestExecutor_Hedge_HedgeWins(t *testing.T) {
 	}
 
 	// Must wait for primary to finish recording
-	<-primaryDone
-	// Small buffer for mutex/recording
-	time.Sleep(10 * time.Millisecond)
+	if !waitForSignal(primaryDone) {
+		t.Fatal("primary did not finish")
+	}
 
 	tl := capture.Timeline()
 	// Should show at least Hedge attempting.
@@ -129,7 +153,7 @@ func TestExecutor_Hedge_HedgeWins(t *testing.T) {
 
 func TestExecutor_Hedge_RetryAndHedge(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping time-dependent test in short mode")
+		t.Skip("skipping in short mode")
 	}
 
 	key := policy.ParseKey("test.hedge.retry")
@@ -137,25 +161,50 @@ func TestExecutor_Hedge_RetryAndHedge(t *testing.T) {
 		Key: key,
 		Retry: policy.RetryPolicy{
 			MaxAttempts:    2,
-			InitialBackoff: 1 * time.Millisecond,
+			InitialBackoff: 0,
 		},
 		Hedge: policy.HedgePolicy{
-			Enabled:    true,
-			MaxHedges:  1,
-			HedgeDelay: 20 * time.Millisecond,
+			Enabled:     true,
+			MaxHedges:   1,
+			HedgeDelay:  0,
+			TriggerName: "immediate",
 		},
 	}
 	exec := newTestExecutor(t, key, pol)
-	exec.sleep = sleepWithContext
-	exec.clock = time.Now
+	setImmediateTrigger(exec)
 
 	ctx, capture := observe.RecordTimeline(context.Background())
+	errHedgeNotStarted := errors.New("hedge did not start")
+	hedgeStarted := []chan struct{}{make(chan struct{}), make(chan struct{})}
+	primaryStarted := []chan struct{}{make(chan struct{}), make(chan struct{})}
+	hedgeOnce := make([]sync.Once, len(hedgeStarted))
+	var missingHedge atomic.Bool
 
 	_, err := DoValue[string](ctx, exec, key, func(ctx context.Context) (string, error) {
-		time.Sleep(50 * time.Millisecond) // Slow enough to trigger hedge (20ms)
+		info, _ := observe.AttemptFromContext(ctx)
+		idx := info.RetryIndex
+		if idx < 0 || idx >= len(hedgeStarted) {
+			return "", errors.New("unexpected retry index")
+		}
+		if info.IsHedge {
+			hedgeOnce[idx].Do(func() { close(hedgeStarted[idx]) })
+			if !waitForSignal(primaryStarted[idx]) {
+				missingHedge.Store(true)
+				return "", errHedgeNotStarted
+			}
+			return "", context.DeadlineExceeded
+		}
+		close(primaryStarted[idx])
+		if !waitForSignal(hedgeStarted[idx]) {
+			missingHedge.Store(true)
+			return "", errHedgeNotStarted
+		}
 		return "", context.DeadlineExceeded
 	})
 
+	if missingHedge.Load() || errors.Is(err, errHedgeNotStarted) {
+		t.Fatal("expected hedge attempts to start")
+	}
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -164,8 +213,22 @@ func TestExecutor_Hedge_RetryAndHedge(t *testing.T) {
 	// Retry 0: Primary + Hedge.
 	// Retry 1: Primary + Hedge.
 	// Total 4.
-	// We use larger delays (50ms vs 20ms) to ensure robustness.
-	if len(tl.Attempts) < 3 {
-		t.Errorf("expected at least 3-4 attempts, got %d", len(tl.Attempts))
+	if len(tl.Attempts) != 4 {
+		t.Errorf("expected 4 attempts, got %d", len(tl.Attempts))
 	}
+}
+
+type immediateTrigger struct{}
+
+func (immediateTrigger) ShouldSpawnHedge(state hedge.HedgeState) (bool, time.Duration) {
+	if state.AttemptsLaunched >= 1+state.MaxHedges {
+		return false, 0
+	}
+	return true, 0
+}
+
+func setImmediateTrigger(exec *Executor) {
+	triggers := hedge.NewRegistry()
+	triggers.Register("immediate", immediateTrigger{})
+	exec.triggers = triggers
 }

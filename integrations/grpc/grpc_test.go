@@ -11,6 +11,7 @@ import (
 
 	"github.com/aponysus/recourse/classify"
 	integration "github.com/aponysus/recourse/integrations/grpc"
+	"github.com/aponysus/recourse/policy"
 	"github.com/aponysus/recourse/retry"
 )
 
@@ -35,6 +36,27 @@ func TestClassifier(t *testing.T) {
 		got := c.Classify(nil, tt.err)
 		if got.Kind != tt.wantKind {
 			t.Errorf("Classify(%v) Kind = %v, want %v", tt.err, got.Kind, tt.wantKind)
+		}
+	}
+}
+
+func TestDefaultKeyFunc(t *testing.T) {
+	cases := []struct {
+		method string
+		want   policy.PolicyKey
+	}{
+		{method: "/Service/Method", want: policy.PolicyKey{Namespace: "Service", Name: "Method"}},
+		{method: "Service/Method", want: policy.PolicyKey{Namespace: "Service", Name: "Method"}},
+		{method: "/pkg.Service/Method", want: policy.PolicyKey{Namespace: "pkg.Service", Name: "Method"}},
+		{method: "/Service/Method/Extra", want: policy.PolicyKey{Name: "Service/Method/Extra"}},
+		{method: "MethodOnly", want: policy.PolicyKey{Name: "MethodOnly"}},
+		{method: "/MethodOnly", want: policy.PolicyKey{Name: "MethodOnly"}},
+	}
+
+	for _, tc := range cases {
+		got := integration.DefaultKeyFunc(tc.method)
+		if got != tc.want {
+			t.Fatalf("DefaultKeyFunc(%q)=%+v, want %+v", tc.method, got, tc.want)
 		}
 	}
 }

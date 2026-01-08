@@ -23,6 +23,8 @@ type ConsecutiveFailureBreaker struct {
 	probesSent          int
 	probesSuccessful    int
 	probesRequired      int // Number of consecutive successes needed to close
+
+	nowFn func() time.Time
 }
 
 // NewConsecutiveFailureBreaker creates a new breaker.
@@ -112,7 +114,7 @@ func (cb *ConsecutiveFailureBreaker) RecordFailure(ctx context.Context) {
 
 func (cb *ConsecutiveFailureBreaker) updateStateLocked() State {
 	if cb.state == StateOpen {
-		if time.Since(cb.openTime) >= cb.cooldown {
+		if cb.now().Sub(cb.openTime) >= cb.cooldown {
 			cb.transitionTo(StateHalfOpen)
 		}
 	}
@@ -127,10 +129,24 @@ func (cb *ConsecutiveFailureBreaker) transitionTo(newState State) {
 		cb.probesSent = 0
 		cb.probesSuccessful = 0
 	case StateOpen:
-		cb.openTime = time.Now()
+		cb.openTime = cb.now()
 		cb.consecutiveFailures = 0 // Reset counter so next time we start fresh? Or keep? Usually irrelevant in open.
 	case StateHalfOpen:
 		cb.probesSent = 0
 		cb.probesSuccessful = 0
 	}
+}
+
+func (cb *ConsecutiveFailureBreaker) now() time.Time {
+	if cb.nowFn != nil {
+		return cb.nowFn()
+	}
+	return time.Now()
+}
+
+// SetClock overrides the breaker clock, primarily for tests.
+func (cb *ConsecutiveFailureBreaker) SetClock(f func() time.Time) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	cb.nowFn = f
 }

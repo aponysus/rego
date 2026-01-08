@@ -10,6 +10,8 @@ func TestConsecutiveFailureBreaker_Transitions(t *testing.T) {
 	threshold := 3
 	cooldown := 50 * time.Millisecond
 	cb := NewConsecutiveFailureBreaker(threshold, cooldown)
+	clock := &fakeClock{now: time.Unix(0, 0)}
+	cb.nowFn = clock.Now
 
 	ctx := context.Background()
 
@@ -49,7 +51,7 @@ func TestConsecutiveFailureBreaker_Transitions(t *testing.T) {
 	}
 
 	// 4. Cooldown Wait
-	time.Sleep(cooldown + 10*time.Millisecond)
+	clock.Advance(cooldown + time.Millisecond)
 
 	// 5. Half-Open Transition (on Allow)
 	d = cb.Allow(ctx)
@@ -76,7 +78,7 @@ func TestConsecutiveFailureBreaker_Transitions(t *testing.T) {
 	}
 
 	// Wait again
-	time.Sleep(cooldown + 10*time.Millisecond)
+	clock.Advance(cooldown + time.Millisecond)
 	cb.Allow(ctx) // Transition to Half-Open
 	if cb.State() != StateHalfOpen {
 		t.Fatalf("expected state Half-Open")
@@ -90,4 +92,16 @@ func TestConsecutiveFailureBreaker_Transitions(t *testing.T) {
 	if d := cb.Allow(ctx); !d.Allowed {
 		t.Fatalf("expected allowed=true after closing")
 	}
+}
+
+type fakeClock struct {
+	now time.Time
+}
+
+func (f *fakeClock) Now() time.Time {
+	return f.now
+}
+
+func (f *fakeClock) Advance(d time.Duration) {
+	f.now = f.now.Add(d)
 }

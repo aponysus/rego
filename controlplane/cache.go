@@ -17,6 +17,7 @@ type cacheEntry struct {
 type PolicyCache struct {
 	mu      sync.RWMutex
 	entries map[policy.PolicyKey]cacheEntry
+	nowFn   func() time.Time
 }
 
 // NewPolicyCache creates a new, empty PolicyCache.
@@ -40,7 +41,7 @@ func (c *PolicyCache) Get(key policy.PolicyKey) (pol policy.EffectivePolicy, fou
 		return policy.EffectivePolicy{}, false, false
 	}
 
-	if time.Now().After(entry.expiresAt) {
+	if c.now().After(entry.expiresAt) {
 		return policy.EffectivePolicy{}, false, false
 	}
 
@@ -54,7 +55,7 @@ func (c *PolicyCache) Set(key policy.PolicyKey, pol policy.EffectivePolicy, ttl 
 
 	c.entries[key] = cacheEntry{
 		policy:    pol,
-		expiresAt: time.Now().Add(ttl),
+		expiresAt: c.now().Add(ttl),
 		found:     true,
 	}
 }
@@ -65,7 +66,7 @@ func (c *PolicyCache) SetMissing(key policy.PolicyKey, ttl time.Duration) {
 	defer c.mu.Unlock()
 
 	c.entries[key] = cacheEntry{
-		expiresAt: time.Now().Add(ttl),
+		expiresAt: c.now().Add(ttl),
 		found:     false,
 	}
 }
@@ -75,4 +76,11 @@ func (c *PolicyCache) Invalidate(key policy.PolicyKey) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.entries, key)
+}
+
+func (c *PolicyCache) now() time.Time {
+	if c.nowFn != nil {
+		return c.nowFn()
+	}
+	return time.Now()
 }
