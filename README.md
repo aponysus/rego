@@ -4,6 +4,7 @@ Policy-driven, observable resilience for Go services: retries, hedging, circuit 
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/aponysus/recourse.svg)](https://pkg.go.dev/github.com/aponysus/recourse)
 [![Go Report Card](https://goreportcard.com/badge/github.com/aponysus/recourse)](https://goreportcard.com/report/github.com/aponysus/recourse)
+[![Coverage](https://codecov.io/gh/aponysus/recourse/branch/main/graph/badge.svg)](https://codecov.io/gh/aponysus/recourse)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 > recourse (n.): a source of help or strength.
