@@ -38,6 +38,22 @@ func (b *countingReleaseBudget) AllowAttempt(_ context.Context, _ policy.PolicyK
 	}
 }
 
+type budgetEventObserver struct {
+	events []observe.BudgetDecisionEvent
+}
+
+func (o *budgetEventObserver) OnStart(context.Context, policy.PolicyKey, policy.EffectivePolicy) {}
+func (o *budgetEventObserver) OnAttempt(context.Context, policy.PolicyKey, observe.AttemptRecord) {}
+func (o *budgetEventObserver) OnHedgeSpawn(context.Context, policy.PolicyKey, observe.AttemptRecord) {
+}
+func (o *budgetEventObserver) OnHedgeCancel(context.Context, policy.PolicyKey, observe.AttemptRecord, string) {
+}
+func (o *budgetEventObserver) OnBudgetDecision(_ context.Context, e observe.BudgetDecisionEvent) {
+	o.events = append(o.events, e)
+}
+func (o *budgetEventObserver) OnSuccess(context.Context, policy.PolicyKey, observe.Timeline) {}
+func (o *budgetEventObserver) OnFailure(context.Context, policy.PolicyKey, observe.Timeline) {}
+
 func TestExecutor_BudgetDeniesSecondAttempt_StopsRetryAndReturnsLastErr(t *testing.T) {
 	key := policy.PolicyKey{Name: "x"}
 
@@ -258,5 +274,128 @@ func TestExecutor_AllowAttempt_ReleaseIsIdempotent(t *testing.T) {
 
 	if releases := atomic.LoadInt32(&cb.releases); releases != 1 {
 		t.Fatalf("releases=%d, want 1", releases)
+	}
+}
+
+type panicBudget struct{}
+
+func (panicBudget) AllowAttempt(context.Context, policy.PolicyKey, int, budget.AttemptKind, policy.BudgetRef) budget.Decision {
+	panic("boom")
+}
+
+type emptyReasonBudget struct {
+	allowed bool
+}
+
+func (b emptyReasonBudget) AllowAttempt(context.Context, policy.PolicyKey, int, budget.AttemptKind, policy.BudgetRef) budget.Decision {
+	return budget.Decision{Allowed: b.allowed}
+}
+
+func TestExecutor_AllowAttempt_NilExecutorAllows(t *testing.T) {
+	var exec *Executor
+	d, ok := exec.allowAttempt(context.Background(), policy.PolicyKey{}, policy.BudgetRef{Name: "b", Cost: 2}, 0, budget.KindRetry)
+	if !ok || !d.Allowed || d.Reason != budget.ReasonNoBudget {
+		t.Fatalf("decision=%+v ok=%v, want allowed/no_budget", d, ok)
+	}
+}
+
+func TestExecutor_AllowAttempt_EmptyBudgetNameAllows(t *testing.T) {
+	obs := &budgetEventObserver{}
+	exec := &Executor{observer: obs}
+
+	d, ok := exec.allowAttempt(context.Background(), policy.PolicyKey{}, policy.BudgetRef{Name: "   ", Cost: 1}, 0, budget.KindRetry)
+	if !ok || !d.Allowed || d.Reason != budget.ReasonNoBudget {
+		t.Fatalf("decision=%+v ok=%v, want allowed/no_budget", d, ok)
+	}
+	if len(obs.events) != 0 {
+		t.Fatalf("expected no budget events, got %d", len(obs.events))
+	}
+}
+
+func TestExecutor_AllowAttempt_BudgetRegistryNil_Denies(t *testing.T) {
+	obs := &budgetEventObserver{}
+	exec := &Executor{
+		observer:          obs,
+		missingBudgetMode: FailureDeny,
+	}
+
+	d, ok := exec.allowAttempt(context.Background(), policy.PolicyKey{Name: "op"}, policy.BudgetRef{Name: "b", Cost: 2}, 0, budget.KindRetry)
+	if ok || d.Allowed || d.Reason != budget.ReasonBudgetRegistryNil {
+		t.Fatalf("decision=%+v ok=%v, want denied/budget_registry_nil", d, ok)
+	}
+	if len(obs.events) != 1 {
+		t.Fatalf("expected 1 budget event, got %d", len(obs.events))
+	}
+	evt := obs.events[0]
+	if evt.Mode != "deny" {
+		t.Fatalf("mode=%q, want %q", evt.Mode, "deny")
+	}
+	if evt.BudgetName != "b" || evt.Cost != 2 {
+		t.Fatalf("event=%+v, want budget b cost 2", evt)
+	}
+}
+
+func TestExecutor_AllowAttempt_MissingBudget_AllowUnsafe(t *testing.T) {
+	obs := &budgetEventObserver{}
+	exec := &Executor{
+		observer:          obs,
+		budgets:           budget.NewRegistry(),
+		missingBudgetMode: FailureAllowUnsafe,
+	}
+
+	d, ok := exec.allowAttempt(context.Background(), policy.PolicyKey{Name: "op"}, policy.BudgetRef{Name: "missing", Cost: 1}, 0, budget.KindRetry)
+	if !ok || !d.Allowed || d.Reason != budget.ReasonBudgetNotFound {
+		t.Fatalf("decision=%+v ok=%v, want allowed/budget_not_found", d, ok)
+	}
+	if len(obs.events) != 1 {
+		t.Fatalf("expected 1 budget event, got %d", len(obs.events))
+	}
+	if obs.events[0].Mode != "allow_unsafe" {
+		t.Fatalf("mode=%q, want %q", obs.events[0].Mode, "allow_unsafe")
+	}
+}
+
+func TestExecutor_AllowAttempt_PanicInBudget(t *testing.T) {
+	obs := &budgetEventObserver{}
+	budgets := budget.NewRegistry()
+	budgets.MustRegister("panic", panicBudget{})
+
+	exec := &Executor{
+		observer:      obs,
+		budgets:       budgets,
+		recoverPanics: true,
+	}
+
+	d, ok := exec.allowAttempt(context.Background(), policy.PolicyKey{Name: "op"}, policy.BudgetRef{Name: "panic", Cost: 1}, 0, budget.KindRetry)
+	if ok || d.Allowed || d.Reason != budget.ReasonPanicInBudget {
+		t.Fatalf("decision=%+v ok=%v, want denied/panic_in_budget", d, ok)
+	}
+	if len(obs.events) != 1 {
+		t.Fatalf("expected 1 budget event, got %d", len(obs.events))
+	}
+	if obs.events[0].Mode != "standard" {
+		t.Fatalf("mode=%q, want %q", obs.events[0].Mode, "standard")
+	}
+}
+
+func TestExecutor_AllowAttempt_DefaultReason(t *testing.T) {
+	obs := &budgetEventObserver{}
+	budgets := budget.NewRegistry()
+	budgets.MustRegister("allow", emptyReasonBudget{allowed: true})
+	budgets.MustRegister("deny", emptyReasonBudget{allowed: false})
+
+	exec := &Executor{
+		observer: obs,
+		budgets:  budgets,
+	}
+
+	d, ok := exec.allowAttempt(context.Background(), policy.PolicyKey{Name: "op"}, policy.BudgetRef{Name: "allow", Cost: 1}, 0, budget.KindRetry)
+	if !ok || !d.Allowed || d.Reason != budget.ReasonAllowed {
+		t.Fatalf("decision=%+v ok=%v, want allowed/allowed", d, ok)
+	}
+
+	d, ok = exec.allowAttempt(context.Background(), policy.PolicyKey{Name: "op"}, policy.BudgetRef{Name: "deny", Cost: 1}, 0, budget.KindRetry)
+	if ok || d.Allowed || d.Reason != budget.ReasonBudgetDenied {
+		t.Fatalf("decision=%+v ok=%v, want denied/budget_denied", d, ok)
 	}
 }
