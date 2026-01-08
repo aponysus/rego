@@ -78,6 +78,16 @@ func TestNewExecutor_OptionWiring(t *testing.T) {
 	}
 }
 
+func TestWithClassifier_CreatesRegistry(t *testing.T) {
+	exec := NewExecutor(WithClassifier("custom", testClassifier{}))
+	if exec.classifiers == nil {
+		t.Fatal("expected classifiers registry to be initialized")
+	}
+	if _, ok := exec.classifiers.Get("custom"); !ok {
+		t.Fatalf("expected custom classifier to be registered")
+	}
+}
+
 func TestNewExecutor_WithPolicyKeyCreatesStaticProvider(t *testing.T) {
 	key := policy.PolicyKey{Namespace: "svc", Name: "op"}
 	exec := NewExecutor(WithPolicyKey(key, policy.MaxAttempts(2)))

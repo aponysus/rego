@@ -132,3 +132,97 @@ func TestEffectivePolicyNormalize_HedgeAndCircuit(t *testing.T) {
 		t.Fatalf("expected normalization to mark changes")
 	}
 }
+
+func TestEffectivePolicyNormalize_ClampsRetryAndTimeouts(t *testing.T) {
+	p := EffectivePolicy{
+		Retry: RetryPolicy{
+			MaxAttempts:       -2,
+			InitialBackoff:    500 * time.Microsecond,
+			MaxBackoff:        2 * time.Minute,
+			BackoffMultiplier: 0.5,
+			Jitter:            JitterFull,
+			TimeoutPerAttempt: 500 * time.Microsecond,
+			OverallTimeout:    500 * time.Microsecond,
+			Budget:            BudgetRef{Cost: -3},
+		},
+		Hedge: HedgePolicy{
+			Enabled:    true,
+			MaxHedges:  10,
+			HedgeDelay: 5 * time.Millisecond,
+			Budget:     BudgetRef{Cost: -2},
+		},
+		Circuit: CircuitPolicy{
+			Enabled:  true,
+			Threshold: 2,
+			Cooldown:  50 * time.Millisecond,
+		},
+	}
+
+	normalized, err := p.Normalize()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if normalized.Retry.MaxAttempts != 1 {
+		t.Fatalf("maxAttempts=%d, want 1", normalized.Retry.MaxAttempts)
+	}
+	if normalized.Retry.InitialBackoff != 1*time.Millisecond {
+		t.Fatalf("initialBackoff=%v, want 1ms", normalized.Retry.InitialBackoff)
+	}
+	if normalized.Retry.MaxBackoff != 30*time.Second {
+		t.Fatalf("maxBackoff=%v, want 30s", normalized.Retry.MaxBackoff)
+	}
+	if normalized.Retry.BackoffMultiplier != 1 {
+		t.Fatalf("multiplier=%v, want 1", normalized.Retry.BackoffMultiplier)
+	}
+	if normalized.Retry.TimeoutPerAttempt != 1*time.Millisecond {
+		t.Fatalf("timeoutPerAttempt=%v, want 1ms", normalized.Retry.TimeoutPerAttempt)
+	}
+	if normalized.Retry.OverallTimeout != 1*time.Millisecond {
+		t.Fatalf("overallTimeout=%v, want 1ms", normalized.Retry.OverallTimeout)
+	}
+	if normalized.Retry.Budget.Cost != 1 {
+		t.Fatalf("retry budget cost=%d, want 1", normalized.Retry.Budget.Cost)
+	}
+
+	if normalized.Hedge.MaxHedges != 3 {
+		t.Fatalf("maxHedges=%d, want 3", normalized.Hedge.MaxHedges)
+	}
+	if normalized.Hedge.HedgeDelay != 10*time.Millisecond {
+		t.Fatalf("hedgeDelay=%v, want 10ms", normalized.Hedge.HedgeDelay)
+	}
+	if normalized.Hedge.Budget.Cost != 1 {
+		t.Fatalf("hedge budget cost=%d, want 1", normalized.Hedge.Budget.Cost)
+	}
+
+	if normalized.Circuit.Cooldown != 100*time.Millisecond {
+		t.Fatalf("cooldown=%v, want 100ms", normalized.Circuit.Cooldown)
+	}
+}
+
+func TestEffectivePolicyNormalize_CapsMaxAttemptsAndBackoff(t *testing.T) {
+	p := EffectivePolicy{
+		Retry: RetryPolicy{
+			MaxAttempts:       100,
+			InitialBackoff:    200 * time.Millisecond,
+			MaxBackoff:        100 * time.Millisecond,
+			BackoffMultiplier: 100,
+			Jitter:            JitterNone,
+		},
+	}
+
+	normalized, err := p.Normalize()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if normalized.Retry.MaxAttempts != 10 {
+		t.Fatalf("maxAttempts=%d, want 10", normalized.Retry.MaxAttempts)
+	}
+	if normalized.Retry.MaxBackoff != 200*time.Millisecond {
+		t.Fatalf("maxBackoff=%v, want 200ms", normalized.Retry.MaxBackoff)
+	}
+	if normalized.Retry.BackoffMultiplier != 10 {
+		t.Fatalf("multiplier=%v, want 10", normalized.Retry.BackoffMultiplier)
+	}
+}

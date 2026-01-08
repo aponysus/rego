@@ -45,3 +45,12 @@ func TestSetGlobal_AfterDefaultExecutorIgnored(t *testing.T) {
 		t.Fatalf("got %p, want %p", got, orig)
 	}
 }
+
+func TestSetGlobal_IgnoresNil(t *testing.T) {
+	resetGlobalExecutor()
+
+	SetGlobal(nil)
+	if DefaultExecutor() == nil {
+		t.Fatalf("expected default executor to initialize")
+	}
+}
