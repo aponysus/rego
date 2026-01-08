@@ -2,6 +2,7 @@ package http_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -154,5 +155,54 @@ func TestDoHTTP_NonRetryableStatus(t *testing.T) {
 
 	if len(tl.Attempts) != 1 {
 		t.Errorf("expected 1 attempt for non-retryable error, got %d", len(tl.Attempts))
+	}
+}
+
+func TestDoHTTP_NonReplayableBodyReturnsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	exec := retry.NewDefaultExecutor()
+	client := server.Client()
+
+	body := &io.LimitedReader{R: strings.NewReader("body"), N: 4}
+	req, _ := http.NewRequest("POST", server.URL, body)
+	req.GetBody = nil
+
+	_, _, err := integration.DoHTTP(context.Background(), exec, policy.PolicyKey{Name: "test"}, client, req)
+	if err == nil {
+		t.Fatal("expected error for non-replayable body")
+	}
+}
+
+func TestStatusError_RetryAfterParsing(t *testing.T) {
+	now := time.Now().UTC()
+	headers := http.Header{}
+	headers.Set("Retry-After", now.Add(2*time.Second).Format(http.TimeFormat))
+	err := &integration.StatusError{Header: headers}
+
+	d, ok := err.RetryAfter()
+	if !ok || d <= 0 || d > 3*time.Second {
+		t.Fatalf("retry-after=%v ok=%v, want >0 and <=3s", d, ok)
+	}
+
+	err.Header = http.Header{"Retry-After": []string{"bogus"}}
+	if d, ok := err.RetryAfter(); ok || d != 0 {
+		t.Fatalf("expected invalid retry-after to return false")
+	}
+}
+
+func TestStatusError_ErrorPrefersWrappedErr(t *testing.T) {
+	wrapped := errors.New("boom")
+	err := &integration.StatusError{Err: wrapped}
+	if err.Error() != "boom" {
+		t.Fatalf("got %q, want %q", err.Error(), "boom")
+	}
+
+	err = &integration.StatusError{Code: 500}
+	if err.Error() != "http status 500" {
+		t.Fatalf("got %q, want %q", err.Error(), "http status 500")
 	}
 }

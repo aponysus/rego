@@ -2,6 +2,7 @@ package budget
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -47,5 +48,52 @@ func TestTokenBucketBudget_ConcurrentUsage(t *testing.T) {
 	}
 	if deniedCount != 1000 {
 		t.Errorf("deniedCount=%d, want 1000", deniedCount)
+	}
+}
+
+func TestUnlimitedBudget_AllowsAttempts(t *testing.T) {
+	b := UnlimitedBudget{}
+	d := b.AllowAttempt(context.Background(), policy.PolicyKey{}, 0, KindRetry, policy.BudgetRef{})
+	if !d.Allowed || d.Reason != ReasonAllowed {
+		t.Fatalf("decision=%+v, want allowed with reason %q", d, ReasonAllowed)
+	}
+}
+
+func TestTokenBucketBudget_NilReceiver(t *testing.T) {
+	var b *TokenBucketBudget
+	d := b.AllowAttempt(context.Background(), policy.PolicyKey{}, 0, KindRetry, policy.BudgetRef{})
+	if d.Allowed || d.Reason != ReasonBudgetNil {
+		t.Fatalf("decision=%+v, want denied with reason %q", d, ReasonBudgetNil)
+	}
+}
+
+func TestTokenBucketBudget_RefillAndCost(t *testing.T) {
+	b := NewTokenBucketBudget(2, 1)
+	b.tokens = 0
+	b.last = time.Now().Add(-2 * time.Second)
+
+	d := b.AllowAttempt(context.Background(), policy.PolicyKey{}, 0, KindRetry, policy.BudgetRef{Cost: 1})
+	if !d.Allowed {
+		t.Fatalf("expected allowed attempt after refill")
+	}
+	if b.tokens != 1 {
+		t.Fatalf("tokens=%v, want 1", b.tokens)
+	}
+
+	d = b.AllowAttempt(context.Background(), policy.PolicyKey{}, 1, KindRetry, policy.BudgetRef{Cost: 2})
+	if d.Allowed || d.Reason != ReasonBudgetDenied {
+		t.Fatalf("decision=%+v, want denied with reason %q", d, ReasonBudgetDenied)
+	}
+}
+
+func TestTokenBucketBudget_InvalidConfig(t *testing.T) {
+	b := NewTokenBucketBudget(-1, math.NaN())
+	if b.capacity != 0 || b.refillPerSecond != 0 {
+		t.Fatalf("capacity=%v refill=%v, want 0,0", b.capacity, b.refillPerSecond)
+	}
+
+	d := b.AllowAttempt(context.Background(), policy.PolicyKey{}, 0, KindRetry, policy.BudgetRef{})
+	if d.Allowed {
+		t.Fatalf("expected denied attempt with zero capacity")
 	}
 }

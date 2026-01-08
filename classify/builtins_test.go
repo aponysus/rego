@@ -98,3 +98,42 @@ func TestHTTPClassifier_TypeMismatch(t *testing.T) {
 		t.Fatalf("expected type mismatch attributes")
 	}
 }
+
+func TestHTTPClassifier_TransportError_Idempotent(t *testing.T) {
+	c := HTTPClassifier{}
+	out := c.Classify(nil, testHTTPError{status: 0, method: "GET"})
+	if out.Kind != OutcomeRetryable || out.Reason != "http_transport_error" {
+		t.Fatalf("out=%+v, want retryable transport error", out)
+	}
+}
+
+func TestHTTPClassifier_TransportError_NonIdempotent(t *testing.T) {
+	c := HTTPClassifier{}
+	out := c.Classify(nil, testHTTPError{status: 0, method: "POST"})
+	if out.Kind != OutcomeNonRetryable || out.Reason != "http_non_idempotent" {
+		t.Fatalf("out=%+v, want non-retryable non-idempotent", out)
+	}
+}
+
+func TestHTTPClassifier_CustomRetryable4xx(t *testing.T) {
+	c := HTTPClassifier{Retryable4xx: map[int]struct{}{409: {}}}
+	out := c.Classify(nil, testHTTPError{status: 409, method: "GET"})
+	if out.Kind != OutcomeRetryable || out.Reason != "http_409" {
+		t.Fatalf("out=%+v, want retryable http_409", out)
+	}
+}
+
+func TestRegisterBuiltins(t *testing.T) {
+	reg := NewRegistry()
+	RegisterBuiltins(reg)
+
+	if _, ok := reg.Get(ClassifierAlwaysRetryOnError); !ok {
+		t.Fatalf("expected %q to be registered", ClassifierAlwaysRetryOnError)
+	}
+	if _, ok := reg.Get(ClassifierHTTP); !ok {
+		t.Fatalf("expected %q to be registered", ClassifierHTTP)
+	}
+	if _, ok := reg.Get("auto"); !ok {
+		t.Fatalf("expected %q to be registered", "auto")
+	}
+}

@@ -55,6 +55,16 @@ func TestDoValue_SimpleSuccess(t *testing.T) {
 	}
 }
 
+func TestDo_SimpleSuccess(t *testing.T) {
+	ctx := context.Background()
+	err := recourse.Do(ctx, "recourse.success", func(context.Context) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestDoValue_RetriesOnError(t *testing.T) {
 	ctx := context.Background()
 	var attempts int32
