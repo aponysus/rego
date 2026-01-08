@@ -11,7 +11,7 @@ func TestConsecutiveFailureBreaker_Transitions(t *testing.T) {
 	cooldown := 50 * time.Millisecond
 	cb := NewConsecutiveFailureBreaker(threshold, cooldown)
 	clock := &fakeClock{now: time.Unix(0, 0)}
-	cb.nowFn = clock.Now
+	cb.SetClock(clock.Now)
 
 	ctx := context.Background()
 
@@ -91,6 +91,19 @@ func TestConsecutiveFailureBreaker_Transitions(t *testing.T) {
 	}
 	if d := cb.Allow(ctx); !d.Allowed {
 		t.Fatalf("expected allowed=true after closing")
+	}
+}
+
+func TestConsecutiveFailureBreaker_DefaultClockKeepsOpen(t *testing.T) {
+	cb := NewConsecutiveFailureBreaker(1, time.Second)
+	ctx := context.Background()
+
+	cb.RecordFailure(ctx)
+	if cb.State() != StateOpen {
+		t.Fatalf("expected Open after threshold failure")
+	}
+	if cb.State() != StateOpen {
+		t.Fatalf("expected Open without waiting for cooldown")
 	}
 }
 
